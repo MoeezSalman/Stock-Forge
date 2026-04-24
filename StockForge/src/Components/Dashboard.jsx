@@ -1,5 +1,48 @@
-/* eslint-disable react-hooks/purity */
 import { useState, useEffect, useRef } from "react";
+
+const darkTheme = {
+  "--bg": "#0a0a0f",
+  "--bg2": "#0d0d18",
+  "--surface": "#111120",
+  "--border": "#1a1a28",
+  "--border2": "#1e1e2e",
+  "--text": "#e2e2e2",
+  "--text2": "#aaa",
+  "--muted": "#666",
+  "--muted2": "#555",
+  "--muted3": "#444",
+  "--accent": "#6d28d9",
+  "--accent2": "#4f46e5",
+  "--green": "#22c55e",
+  "--red": "#ef4444",
+  "--amber": "#d97706",
+  "--blue": "#3b82f6",
+  "--purple": "#8b5cf6",
+  "--mono": "'JetBrains Mono', 'Fira Code', 'Courier New', monospace",
+  "--logo-grad": "linear-gradient(135deg,#6d28d9,#4f46e5)",
+};
+
+const lightTheme = {
+  "--bg": "#f0f5fb",
+  "--bg2": "#ffffff",
+  "--surface": "#f7f9fc",
+  "--border": "#dde4ef",
+  "--border2": "#c8d4e8",
+  "--text": "#0f172a",
+  "--text2": "#334155",
+  "--muted": "#64748b",
+  "--muted2": "#94a3b8",
+  "--muted3": "#b0bcd4",
+  "--accent": "#4f46e5",
+  "--accent2": "#6d28d9",
+  "--green": "#16a34a",
+  "--red": "#dc2626",
+  "--amber": "#b45309",
+  "--blue": "#2563eb",
+  "--purple": "#7c3aed",
+  "--mono": "'JetBrains Mono', 'Fira Code', 'Courier New', monospace",
+  "--logo-grad": "linear-gradient(135deg,#4f46e5,#6d28d9)",
+};
 
 const tickerData = [
   { symbol: "TSLA", price: "246.71", change: "-2.14%", neg: true },
@@ -34,7 +77,6 @@ const newsItems = [
   { source: "TechCrunch", time: "5h 33m ago", headline: "Apple unveils new M4 chip architecture improvements for next-gen Mac lineup", sentiment: "Neutral", score: "-0.15", color: "#a3a3a3" },
 ];
 
-// Chart data points (relative y values, will be scaled)
 const chartPoints = [
   186.5, 186.8, 187.0, 186.7, 186.9, 187.2, 187.5, 187.8, 188.0, 188.3,
   188.1, 188.5, 188.9, 189.0, 189.2, 189.1, 189.4, 189.3, 189.6, 189.8,
@@ -43,62 +85,52 @@ const chartPoints = [
 
 const forecastPoints = [190.88, 191.2, 191.8, 192.1, 192.4, 192.8, 193.0];
 
-function SparkChart() {
+function SparkChart({ isDark }) {
   const width = 820;
   const height = 180;
   const paddingX = 20;
   const paddingY = 20;
   const minY = 185;
   const maxY = 193;
+  const lineColor = "#8b5cf6";
+  const forecastColor = "#d97706";
+  const gridColor = isDark ? "#ffffff08" : "#00000010";
+  const labelColor = isDark ? "#555" : "#94a3b8";
+  const dotBg = isDark ? "#1a1a2e" : "#f0f5fb";
+  const todayLineColor = isDark ? "#666" : "#94a3b8";
+  const todayBoxBg = isDark ? "#1e1e2e" : "#e2e8f0";
+  const todayBoxBorder = isDark ? "#333" : "#c8d4e8";
+  const todayTextColor = isDark ? "#aaa" : "#64748b";
 
-  const scaleX = (i, total) =>
-    paddingX + (i / (total - 1)) * (width - paddingX * 2);
-  const scaleY = (v) =>
-    height - paddingY - ((v - minY) / (maxY - minY)) * (height - paddingY * 2);
+  const scaleX = (i, total) => paddingX + (i / (total - 1)) * (width - paddingX * 2);
+  const scaleY = (v) => height - paddingY - ((v - minY) / (maxY - minY)) * (height - paddingY * 2);
 
   const allPoints = [...chartPoints];
-  const pathD = allPoints
-    .map((v, i) => `${i === 0 ? "M" : "L"} ${scaleX(i, allPoints.length)} ${scaleY(v)}`)
-    .join(" ");
-
-  const areaD =
-    pathD +
-    ` L ${scaleX(allPoints.length - 1, allPoints.length)} ${height - paddingY} L ${scaleX(0, allPoints.length)} ${height - paddingY} Z`;
+  const pathD = allPoints.map((v, i) => `${i === 0 ? "M" : "L"} ${scaleX(i, allPoints.length)} ${scaleY(v)}`).join(" ");
+  const areaD = pathD + ` L ${scaleX(allPoints.length - 1, allPoints.length)} ${height - paddingY} L ${scaleX(0, allPoints.length)} ${height - paddingY} Z`;
 
   const forecastStartX = scaleX(chartPoints.length - 1, chartPoints.length);
-  const forecastEndX = scaleX(chartPoints.length - 1 + forecastPoints.length - 1, chartPoints.length + forecastPoints.length - 1);
+  const fPathD = forecastPoints.map((v, i) => {
+    const xi = chartPoints.length - 1 + i;
+    const total = chartPoints.length + forecastPoints.length - 1;
+    return `${i === 0 ? "M" : "L"} ${scaleX(xi, total)} ${scaleY(v)}`;
+  }).join(" ");
 
-  const fPathD = forecastPoints
-    .map((v, i) => {
-      const xi = chartPoints.length - 1 + i;
-      const total = chartPoints.length + forecastPoints.length - 1;
-      return `${i === 0 ? "M" : "L"} ${scaleX(xi, total)} ${scaleY(v)}`;
-    })
-    .join(" ");
+  const fAreaD = fPathD + ` L ${scaleX(chartPoints.length - 1 + forecastPoints.length - 1, chartPoints.length + forecastPoints.length - 1)} ${height - paddingY} L ${forecastStartX} ${height - paddingY} Z`;
 
-  const fAreaD =
-    fPathD +
-    ` L ${scaleX(chartPoints.length - 1 + forecastPoints.length - 1, chartPoints.length + forecastPoints.length - 1)} ${height - paddingY} L ${forecastStartX} ${height - paddingY} Z`;
-
-  // Confidence band (upper/lower)
   const upperBand = forecastPoints.map((v) => v + 0.8);
   const lowerBand = forecastPoints.map((v) => v - 0.8);
 
   const bandPath = () => {
     const total = chartPoints.length + forecastPoints.length - 1;
-    const upper = upperBand
-      .map((v, i) => {
-        const xi = chartPoints.length - 1 + i;
-        return `${i === 0 ? "M" : "L"} ${scaleX(xi, total)} ${scaleY(v)}`;
-      })
-      .join(" ");
-    const lower = lowerBand
-      .map((v, i) => {
-        const xi = chartPoints.length - 1 + i;
-        const ri = lowerBand.length - 1 - i;
-        return `L ${scaleX(chartPoints.length - 1 + ri, total)} ${scaleY(lowerBand[ri])}`;
-      })
-      .join(" ");
+    const upper = upperBand.map((v, i) => {
+      const xi = chartPoints.length - 1 + i;
+      return `${i === 0 ? "M" : "L"} ${scaleX(xi, total)} ${scaleY(v)}`;
+    }).join(" ");
+    const lower = lowerBand.map((v, i) => {
+      const ri = lowerBand.length - 1 - i;
+      return `L ${scaleX(chartPoints.length - 1 + ri, total)} ${scaleY(lowerBand[ri])}`;
+    }).join(" ");
     return upper + " " + lower + " Z";
   };
 
@@ -117,56 +149,21 @@ function SparkChart() {
           <stop offset="100%" stopColor="#d97706" stopOpacity="0.02" />
         </linearGradient>
       </defs>
-
-      {/* Grid lines */}
       {[186, 188, 190, 192].map((v) => (
         <g key={v}>
-          <line
-            x1={paddingX}
-            x2={width - paddingX}
-            y1={scaleY(v)}
-            y2={scaleY(v)}
-            stroke="#ffffff08"
-            strokeWidth="1"
-          />
-          <text x={paddingX - 5} y={scaleY(v) + 4} fill="#555" fontSize="10" textAnchor="end">
-            ${v}
-          </text>
+          <line x1={paddingX} x2={width - paddingX} y1={scaleY(v)} y2={scaleY(v)} stroke={gridColor} strokeWidth="1" />
+          <text x={paddingX - 5} y={scaleY(v) + 4} fill={labelColor} fontSize="10" textAnchor="end">${v}</text>
         </g>
       ))}
-
-      {/* Confidence band */}
       <path d={bandPath()} fill="#d97706" fillOpacity="0.12" />
-
-      {/* Forecast area */}
       <path d={fAreaD} fill="url(#forecastGrad)" />
-
-      {/* Actual area */}
       <path d={areaD} fill="url(#areaGrad)" />
-
-      {/* Actual line */}
-      <path d={pathD} fill="none" stroke="#8b5cf6" strokeWidth="2" strokeLinejoin="round" />
-
-      {/* Forecast line (dashed) */}
-      <path d={fPathD} fill="none" stroke="#d97706" strokeWidth="2" strokeDasharray="5,3" strokeLinejoin="round" />
-
-      {/* Today vertical line */}
-      <line
-        x1={dotX}
-        x2={dotX}
-        y1={paddingY}
-        y2={height - paddingY}
-        stroke="#666"
-        strokeWidth="1"
-        strokeDasharray="3,3"
-      />
-
-      {/* TODAY label */}
-      <rect x={dotX - 22} y={paddingY - 16} width="44" height="14" rx="3" fill="#1e1e2e" stroke="#333" strokeWidth="1" />
-      <text x={dotX} y={paddingY - 5} fill="#aaa" fontSize="9" textAnchor="middle">TODAY</text>
-
-      {/* Dot at current price */}
-      <circle cx={dotX} cy={dotY} r="5" fill="#f59e0b" stroke="#1a1a2e" strokeWidth="2" />
+      <path d={pathD} fill="none" stroke={lineColor} strokeWidth="2" strokeLinejoin="round" />
+      <path d={fPathD} fill="none" stroke={forecastColor} strokeWidth="2" strokeDasharray="5,3" strokeLinejoin="round" />
+      <line x1={dotX} x2={dotX} y1={paddingY} y2={height - paddingY} stroke={todayLineColor} strokeWidth="1" strokeDasharray="3,3" />
+      <rect x={dotX - 22} y={paddingY - 16} width="44" height="14" rx="3" fill={todayBoxBg} stroke={todayBoxBorder} strokeWidth="1" />
+      <text x={dotX} y={paddingY - 5} fill={todayTextColor} fontSize="9" textAnchor="middle">TODAY</text>
+      <circle cx={dotX} cy={dotY} r="5" fill="#f59e0b" stroke={dotBg} strokeWidth="2" />
     </svg>
   );
 }
@@ -176,71 +173,57 @@ function VolumeChart() {
     height: 20 + Math.random() * 60,
     color: i % 3 === 0 ? "#ef4444" : i % 3 === 1 ? "#22c55e" : i % 5 === 0 ? "#d97706" : "#7c3aed",
   }));
-
   return (
     <div style={{ display: "flex", alignItems: "flex-end", gap: "2px", height: "50px", padding: "0 8px" }}>
       {bars.map((bar, i) => (
-        <div
-          key={i}
-          style={{
-            flex: 1,
-            height: `${bar.height}%`,
-            backgroundColor: bar.color,
-            opacity: 0.75,
-            borderRadius: "1px 1px 0 0",
-            minWidth: "4px",
-          }}
-        />
+        <div key={i} style={{ flex: 1, height: `${bar.height}%`, backgroundColor: bar.color, opacity: 0.75, borderRadius: "1px 1px 0 0", minWidth: "4px" }} />
       ))}
     </div>
   );
 }
 
-function CircleScore({ score = 75 }) {
+function CircleScore({ score = 75, isDark }) {
   const r = 28;
   const circ = 2 * Math.PI * r;
   const offset = circ - (score / 100) * circ;
+  const trackColor = isDark ? "#1e1e2e" : "#e2e8f0";
   return (
     <div style={{ position: "relative", width: 72, height: 72, flexShrink: 0 }}>
       <svg width="72" height="72" viewBox="0 0 72 72">
-        <circle cx="36" cy="36" r={r} fill="none" stroke="#1e1e2e" strokeWidth="6" />
-        <circle
-          cx="36" cy="36" r={r}
-          fill="none"
-          stroke="#22c55e"
-          strokeWidth="6"
-          strokeDasharray={`${circ}`}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          transform="rotate(-90 36 36)"
-        />
+        <circle cx="36" cy="36" r={r} fill="none" stroke={trackColor} strokeWidth="6" />
+        <circle cx="36" cy="36" r={r} fill="none" stroke="#22c55e" strokeWidth="6"
+          strokeDasharray={`${circ}`} strokeDashoffset={offset} strokeLinecap="round" transform="rotate(-90 36 36)" />
       </svg>
       <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ color: "#fff", fontSize: 18, fontWeight: 700, lineHeight: 1 }}>{score}</span>
-        <span style={{ color: "#666", fontSize: 8 }}>AVG</span>
+        <span style={{ color: "var(--text)", fontSize: 18, fontWeight: 700, lineHeight: 1 }}>{score}</span>
+        <span style={{ color: "var(--muted)", fontSize: 8 }}>AVG</span>
       </div>
     </div>
   );
 }
 
 export default function Dashboard() {
+  const [isDark, setIsDark] = useState(true);
   const [activeTab, setActiveTab] = useState("Dashboard");
+  const theme = isDark ? darkTheme : lightTheme;
   const navTabs = ["Dashboard", "Predictions", "Sentiment", "Model", "Portfolio"];
 
-  const styles = {
+  const rootStyle = Object.fromEntries(Object.entries(theme));
+
+  const s = {
     root: {
-      fontFamily: "'JetBrains Mono', 'Fira Code', 'Courier New', monospace",
-      background: "#0a0a0f",
-      color: "#e2e2e2",
+      fontFamily: "var(--mono)",
+      background: "var(--bg)",
+      color: "var(--text)",
       minHeight: "100vh",
       fontSize: "12px",
       display: "flex",
       flexDirection: "column",
+      transition: "background 0.25s, color 0.25s",
     },
-    // Top nav bar
     topBar: {
-      background: "#0d0d18",
-      borderBottom: "1px solid #1e1e2e",
+      background: "var(--bg2)",
+      borderBottom: "1px solid var(--border)",
       display: "flex",
       alignItems: "center",
       padding: "0 16px",
@@ -248,484 +231,346 @@ export default function Dashboard() {
       gap: "16px",
       flexShrink: 0,
     },
-    logo: {
-      display: "flex", alignItems: "center", gap: "6px",
-      fontWeight: 700, fontSize: "13px", color: "#fff", whiteSpace: "nowrap",
-    },
-    logoIcon: {
-      width: 22, height: 22, background: "linear-gradient(135deg,#6d28d9,#4f46e5)",
-      borderRadius: "5px", display: "flex", alignItems: "center", justifyContent: "center",
-      fontSize: "10px", fontWeight: 900, color: "#fff",
-    },
+    logo: { display: "flex", alignItems: "center", gap: "6px", fontWeight: 700, fontSize: "13px", color: "var(--text)", whiteSpace: "nowrap" },
+    logoIcon: { width: 22, height: 22, background: "var(--logo-grad)", borderRadius: "5px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: 900, color: "#fff" },
     navTabs: { display: "flex", gap: "2px", flex: 1, justifyContent: "center" },
     navTab: (active) => ({
-      padding: "4px 14px",
-      borderRadius: "5px",
-      cursor: "pointer",
-      fontSize: "12px",
-      fontWeight: active ? 600 : 400,
-      color: active ? "#fff" : "#888",
-      background: active ? "#1e1e30" : "transparent",
-      border: "none",
-      outline: "none",
+      padding: "4px 14px", borderRadius: "5px", cursor: "pointer", fontSize: "12px",
+      fontWeight: active ? 600 : 400, color: active ? "var(--text)" : "var(--muted)",
+      background: active ? (isDark ? "#1e1e30" : "#e8edf7") : "transparent",
+      border: "none", outline: "none", fontFamily: "var(--mono)",
     }),
+    toggleBtn: {
+      padding: "4px 12px", borderRadius: "5px", fontSize: "11px", fontWeight: 600,
+      cursor: "pointer", border: "1px solid var(--border2)", background: isDark ? "#1e1e30" : "#e8edf7",
+      color: "var(--text)", fontFamily: "var(--mono)", display: "flex", alignItems: "center", gap: "5px",
+      whiteSpace: "nowrap", transition: "all 0.2s",
+    },
     btnMarket: {
-      background: "#1a2a1a",
-      border: "1px solid #22c55e55",
-      borderRadius: "5px",
-      color: "#22c55e",
-      padding: "4px 10px",
-      fontSize: "10px",
-      fontWeight: 600,
-      cursor: "pointer",
-      whiteSpace: "nowrap",
+      background: isDark ? "#1a2a1a" : "#dcfce7",
+      border: `1px solid ${isDark ? "#22c55e55" : "#16a34a44"}`,
+      borderRadius: "5px", color: "var(--green)", padding: "4px 10px",
+      fontSize: "10px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "var(--mono)",
     },
     btnRun: {
-      background: "linear-gradient(90deg,#6d28d9,#4f46e5)",
-      border: "none",
-      borderRadius: "5px",
-      color: "#fff",
-      padding: "5px 14px",
-      fontSize: "11px",
-      fontWeight: 700,
-      cursor: "pointer",
-      whiteSpace: "nowrap",
+      background: "var(--logo-grad)", border: "none", borderRadius: "5px",
+      color: "#fff", padding: "5px 14px", fontSize: "11px", fontWeight: 700,
+      cursor: "pointer", whiteSpace: "nowrap", fontFamily: "var(--mono)",
     },
-    // Ticker strip
-    ticker: {
-      background: "#0d0d18",
-      borderBottom: "1px solid #1a1a28",
+    tickerOuter: {
+      background: "var(--bg2)",
+      borderBottom: "1px solid var(--border)",
+      overflow: "hidden",
+      flexShrink: 0,
+      height: "32px",
+      display: "flex",
+      alignItems: "center",
+    },
+    tickerTrack: {
       display: "flex",
       gap: "0",
-      padding: "5px 16px",
-      overflowX: "auto",
-      flexShrink: 0,
+      animation: "tickerScroll 28s linear infinite",
+      whiteSpace: "nowrap",
     },
     tickerItem: {
-      display: "flex", gap: "6px", alignItems: "center",
-      padding: "0 14px", borderRight: "1px solid #1e1e2e",
+      display: "inline-flex", gap: "6px", alignItems: "center",
+      padding: "0 20px", borderRight: `1px solid var(--border)`,
     },
-    // Main layout
-    main: {
-      display: "flex",
-      flex: 1,
-      overflow: "hidden",
-    },
-    // Sidebar
+    main: { display: "flex", flex: 1, overflow: "hidden" },
     sidebar: {
-      width: "170px",
-      flexShrink: 0,
-      background: "#0d0d18",
-      borderRight: "1px solid #1a1a28",
-      display: "flex",
-      flexDirection: "column",
-      padding: "12px 0",
-      overflowY: "auto",
+      width: "170px", flexShrink: 0, background: "var(--bg2)",
+      borderRight: "1px solid var(--border)", display: "flex",
+      flexDirection: "column", padding: "12px 0", overflowY: "auto",
     },
-    sidebarLabel: {
-      color: "#555",
-      fontSize: "9px",
-      fontWeight: 700,
-      letterSpacing: "0.08em",
-      padding: "0 12px",
-      marginBottom: "6px",
-      textTransform: "uppercase",
-    },
+    sidebarLabel: { color: "var(--muted2)", fontSize: "9px", fontWeight: 700, letterSpacing: "0.08em", padding: "0 12px", marginBottom: "6px", textTransform: "uppercase" },
     watchItem: (active) => ({
       display: "flex", justifyContent: "space-between", alignItems: "center",
-      padding: "7px 12px",
-      background: active ? "#1a1a2e" : "transparent",
-      cursor: "pointer",
-      borderLeft: active ? "2px solid #6d28d9" : "2px solid transparent",
+      padding: "7px 12px", background: active ? (isDark ? "#1a1a2e" : "#eef2fb") : "transparent",
+      cursor: "pointer", borderLeft: active ? "2px solid var(--accent)" : "2px solid transparent",
     }),
-    // Center content
-    center: {
-      flex: 1,
-      display: "flex",
-      flexDirection: "column",
-      overflowY: "auto",
-      overflowX: "hidden",
-      background: "#0a0a0f",
-    },
-    stockHeader: {
-      padding: "14px 20px 8px",
-      borderBottom: "1px solid #1a1a28",
-    },
-   chartArea: {
-    padding: "0 8px",
-    flex: 1,          // ✅ bring this back
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "flex-start",
-  },
-    timeButtons: {
-      display: "flex", gap: "4px", justifyContent: "flex-end",
-      padding: "8px 16px 0",
-    },
+    center: { flex: 1, display: "flex", flexDirection: "column", overflowY: "auto", overflowX: "hidden", background: "var(--bg)" },
+    stockHeader: { padding: "14px 20px 8px", borderBottom: "1px solid var(--border)" },
+    chartArea: { padding: "0 8px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-start" },
     timeBtn: (active) => ({
-      padding: "2px 8px", borderRadius: "4px", fontSize: "10px", cursor: "pointer",
-      background: active ? "#6d28d9" : "transparent",
-      color: active ? "#fff" : "#555",
-      border: active ? "none" : "1px solid #1e1e2e",
+      padding: "2px 8px", borderRadius: "4px", fontSize: "10px", cursor: "pointer", fontFamily: "var(--mono)",
+      background: active ? "var(--accent)" : "transparent",
+      color: active ? "#fff" : "var(--muted2)",
+      border: active ? "none" : "1px solid var(--border2)",
     }),
-    legendRow: {
-      display: "flex", gap: "14px", padding: "6px 16px",
-      fontSize: "10px", color: "#666",
-    },
-    legendDot: (color, dashed) => ({
-      display: "inline-block", width: dashed ? "18px" : "18px", height: "2px",
-      background: color, marginRight: "4px", verticalAlign: "middle",
-      borderTop: dashed ? `2px dashed ${color}` : `2px solid ${color}`,
-      opacity: 0.9,
-    }),
-    volumeSection: {
-      borderTop: "1px solid #1a1a28",
-      padding: "6px 8px 2px",
-    },
-    volLabel: { color: "#555", fontSize: "9px", padding: "0 8px 2px", textTransform: "uppercase", letterSpacing: "0.07em" },
-    statsRow: {
-      display: "flex",
-      borderTop: "1px solid #1a1a28",
-      background: "#0d0d18",
-    },
-    statItem: {
-      flex: 1, padding: "8px 16px",
-      borderRight: "1px solid #1a1a28",
-    },
-    statLabel: { color: "#555", fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.06em" },
-    statVal: (color) => ({ color: color || "#fff", fontSize: "13px", fontWeight: 700, marginTop: "2px" }),
-    forecastRow: {
-      display: "flex", gap: "0",
-      background: "#0d0d18",
-      borderTop: "1px solid #1a1a28",
-    },
+    volumeSection: { borderTop: "1px solid var(--border)", padding: "6px 8px 2px" },
+    statsRow: { display: "flex", borderTop: "1px solid var(--border)", background: "var(--bg2)" },
+    statItem: { flex: 1, padding: "8px 16px", borderRight: "1px solid var(--border)" },
+    forecastRow: { display: "flex", gap: "0", background: "var(--bg2)", borderTop: "1px solid var(--border)" },
     forecastCard: (borderColor) => ({
-      flex: 1,
-      padding: "12px 16px",
-      borderRight: "1px solid #1a1a28",
-      borderTop: `2px solid ${borderColor}`,
+      flex: 1, padding: "12px 16px", borderRight: "1px solid var(--border)", borderTop: `2px solid ${borderColor}`,
     }),
-    fcLabel: { color: "#555", fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.07em" },
-    fcPrimary: { color: "#666", fontSize: "9px" },
-    fcDirection: (color) => ({ color, fontSize: "11px", fontWeight: 700, marginTop: "6px", display: "flex", alignItems: "center", gap: "4px" }),
-    fcPrice: (color) => ({ color, fontSize: "20px", fontWeight: 700, margin: "2px 0" }),
-    fcConf: { color: "#555", fontSize: "9px" },
-    progressBar: (color, pct) => ({
-      height: "2px", background: "#1e1e2e", borderRadius: "1px", marginTop: "4px",
-      position: "relative", overflow: "hidden",
-    }),
-    progressFill: (color, pct) => ({
-      width: `${pct}%`, height: "100%", background: color, borderRadius: "1px",
-    }),
-    // Right panel
     rightPanel: {
-      width: "220px",
-      flexShrink: 0,
-      background: "#0d0d18",
-      borderLeft: "1px solid #1a1a28",
-      display: "flex",
-      flexDirection: "column",
-      overflowY: "auto",
+      width: "220px", flexShrink: 0, background: "var(--bg2)",
+      borderLeft: "1px solid var(--border)", display: "flex",
+      flexDirection: "column", overflowY: "auto",
     },
-    rpSection: {
-      borderBottom: "1px solid #1a1a28",
-      padding: "10px 12px",
-    },
-    rpLabel: {
-      color: "#555", fontSize: "9px", textTransform: "uppercase",
-      letterSpacing: "0.08em", marginBottom: "8px", fontWeight: 700,
-    },
+    rpSection: { borderBottom: "1px solid var(--border)", padding: "10px 12px" },
+    rpLabel: { color: "var(--muted2)", fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "8px", fontWeight: 700 },
   };
 
+  const tickerItems = [...tickerData, ...tickerData, ...tickerData];
+
   return (
-    <div style={styles.root}>
-      {/* Top Navigation */}
-      <div style={styles.topBar}>
-        <div style={styles.logo}>
-          <div style={styles.logoIcon}>SF</div>
-          <span>Stock <span style={{ color: "#6d28d9" }}>Forge</span></span>
-        </div>
-        <div style={styles.navTabs}>
-          {navTabs.map((t) => (
-            <button key={t} style={styles.navTab(t === activeTab)} onClick={() => setActiveTab(t)}>
-              {t}
-            </button>
-          ))}
-        </div>
-        <button style={styles.btnMarket}>▶ MARKET OPEN</button>
-        <button style={styles.btnRun}>Run Analysis</button>
-      </div>
+    <>
+      <style>{`
+        @keyframes tickerScroll {
+          0%   { transform: translateX(0); }
+          100% { transform: translateX(-33.333%); }
+        }
+        .ticker-track:hover { animation-play-state: paused; }
+      `}</style>
+      <div style={{ ...s.root, ...rootStyle }}>
 
-      {/* Ticker Strip */}
-      <div style={styles.ticker}>
-        {tickerData.map((t) => (
-          <div key={t.symbol} style={styles.tickerItem}>
-            <span style={{ color: "#aaa", fontWeight: 600 }}>{t.symbol}</span>
-            <span style={{ color: "#ddd" }}>${t.price}</span>
-            <span style={{ color: t.neg ? "#ef4444" : "#22c55e", fontWeight: 600 }}>{t.change}</span>
+        {/* Top Nav */}
+        <div style={s.topBar}>
+          <div style={s.logo}>
+            <div style={s.logoIcon}>SF</div>
+            <span>Stock <span style={{ color: "var(--accent)" }}>Forge</span></span>
           </div>
-        ))}
-      </div>
+          <div style={s.navTabs}>
+            {navTabs.map((t) => (
+              <button key={t} style={s.navTab(t === activeTab)} onClick={() => setActiveTab(t)}>{t}</button>
+            ))}
+          </div>
+          <button style={s.btnMarket}>▶ MARKET OPEN</button>
+          <button style={s.toggleBtn} onClick={() => setIsDark(!isDark)}>
+            {isDark ? "☀ Light" : "☽ Dark"}
+          </button>
+          <button style={s.btnRun}>Run Analysis</button>
+        </div>
 
-      {/* Main Content */}
-      <div style={styles.main}>
-        {/* Sidebar */}
-        <div style={styles.sidebar}>
-          <div style={styles.sidebarLabel}>Watchlist</div>
-          {watchlist.map((w) => (
-            <div key={w.symbol} style={styles.watchItem(w.active)}>
-              <div>
-                <div style={{ color: "#fff", fontWeight: 600, fontSize: "12px" }}>{w.symbol}</div>
-                <div style={{ color: "#555", fontSize: "9px" }}>{w.name}</div>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ color: "#fff", fontWeight: 600 }}>{w.price}</div>
-                <div style={{ color: w.neg ? "#ef4444" : "#22c55e", fontSize: "10px" }}>{w.change}</div>
-              </div>
-            </div>
-          ))}
-
-          {/* Divider */}
-          <div style={{ margin: "14px 0 10px", borderTop: "1px solid #1a1a28" }} />
-
-          {/* Market Sentiment Index */}
-          <div style={styles.sidebarLabel}>Market Sentiment Index</div>
-          <div style={{ padding: "0 12px", display: "flex", flexDirection: "column", gap: "6px" }}>
-            {[
-              { label: "Bullish", pct: 68, color: "#22c55e" },
-              { label: "Bearish", pct: 19, color: "#ef4444" },
-              { label: "Neutral", pct: 21, color: "#888" },
-            ].map((s) => (
-              <div key={s.label}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "2px" }}>
-                  <span style={{ color: "#888", fontSize: "10px" }}>{s.label}</span>
-                  <span style={{ color: s.color, fontSize: "10px", fontWeight: 600 }}>{s.pct}%</span>
-                </div>
-                <div style={{ background: "#1a1a28", borderRadius: "2px", height: "4px" }}>
-                  <div style={{ width: `${s.pct}%`, height: "100%", background: s.color, borderRadius: "2px" }} />
-                </div>
+        {/* Animated Ticker Strip */}
+        <div style={s.tickerOuter}>
+          <div className="ticker-track" style={s.tickerTrack}>
+            {tickerItems.map((t, i) => (
+              <div key={i} style={s.tickerItem}>
+                <span style={{ color: "var(--text2)", fontWeight: 600 }}>{t.symbol}</span>
+                <span style={{ color: "var(--text)" }}>${t.price}</span>
+                <span style={{ color: t.neg ? "var(--red)" : "var(--green)", fontWeight: 600 }}>{t.change}</span>
               </div>
             ))}
           </div>
-
-          <div style={{ margin: "14px 0 10px", borderTop: "1px solid #1a1a28" }} />
-
-          {/* Model Status */}
-          <div style={styles.sidebarLabel}>Model Status</div>
-          <div style={{ padding: "0 12px", display: "flex", flexDirection: "column", gap: "5px" }}>
-            {[
-              { label: "LSTM Model", status: "Active", color: "#22c55e" },
-              { label: "NLP Sentiment", status: "Active", color: "#22c55e" },
-              { label: "Feature Fusion", status: "Running", color: "#f59e0b" },
-            ].map((m) => (
-              <div key={m.label} style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: "#666", fontSize: "10px" }}>{m.label}</span>
-                <span style={{ color: m.color, fontSize: "10px" }}>● {m.status}</span>
-              </div>
-            ))}
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ color: "#666", fontSize: "10px" }}>Last Retrain</span>
-              <span style={{ color: "#888", fontSize: "10px" }}>2h 14m ago</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ color: "#666", fontSize: "10px" }}>Data Source</span>
-              <span style={{ color: "#888", fontSize: "10px" }}>Kaggle + Live</span>
-            </div>
-          </div>
         </div>
 
-        {/* Center */}
-        <div style={styles.center}>
-          {/* Stock Header */}
-          <div style={styles.stockHeader}>
-            <div style={{ display: "flex", alignItems: "baseline", gap: "10px" }}>
-              <span style={{ color: "#fff", fontSize: "16px", fontWeight: 700 }}>AAPL</span>
-              <span style={{ color: "#666", fontSize: "12px" }}>Apple Inc. · NASDAQ</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginTop: "4px" }}>
-              <span style={{ color: "#fff", fontSize: "28px", fontWeight: 700 }}>$189.42</span>
-              <span style={{ color: "#22c55e", fontWeight: 600 }}>+3.42</span>
-              <span style={{ color: "#22c55e", fontWeight: 600 }}>+1.84%</span>
-              <span style={{ color: "#555", fontSize: "10px" }}>15 Apr 2024, 16:00 EST</span>
-            </div>
-          </div>
+        {/* Main */}
+        <div style={s.main}>
 
-          {/* Time buttons + legend */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 16px 0" }}>
-            <div style={styles.legendRow}>
+          {/* Sidebar */}
+          <div style={s.sidebar}>
+            <div style={s.sidebarLabel}>Watchlist</div>
+            {watchlist.map((w) => (
+              <div key={w.symbol} style={s.watchItem(w.active)}>
+                <div>
+                  <div style={{ color: "var(--text)", fontWeight: 600, fontSize: "12px" }}>{w.symbol}</div>
+                  <div style={{ color: "var(--muted2)", fontSize: "9px" }}>{w.name}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ color: "var(--text)", fontWeight: 600 }}>{w.price}</div>
+                  <div style={{ color: w.neg ? "var(--red)" : "var(--green)", fontSize: "10px" }}>{w.change}</div>
+                </div>
+              </div>
+            ))}
+
+            <div style={{ margin: "14px 0 10px", borderTop: "1px solid var(--border)" }} />
+
+            <div style={s.sidebarLabel}>Market Sentiment Index</div>
+            <div style={{ padding: "0 12px", display: "flex", flexDirection: "column", gap: "6px" }}>
               {[
-                { label: "Actual", color: "#8b5cf6", dashed: false },
-                { label: "Prediction", color: "#d97706", dashed: true },
-                { label: "Confidence band", color: "#d97706", dashed: false, opacity: 0.3 },
-              ].map((l) => (
-                <div key={l.label} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                  <span style={{
-                    display: "inline-block", width: "18px", height: "2px",
-                    background: l.dashed ? "transparent" : l.color,
-                    borderTop: l.dashed ? `2px dashed ${l.color}` : "none",
-                    opacity: l.opacity || 1,
-                    verticalAlign: "middle",
-                  }} />
-                  <span style={{ color: "#555" }}>{l.label}</span>
+                { label: "Bullish", pct: 68, color: "var(--green)" },
+                { label: "Bearish", pct: 19, color: "var(--red)" },
+                { label: "Neutral", pct: 21, color: "var(--muted)" },
+              ].map((s2) => (
+                <div key={s2.label}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "2px" }}>
+                    <span style={{ color: "var(--muted)", fontSize: "10px" }}>{s2.label}</span>
+                    <span style={{ color: s2.color, fontSize: "10px", fontWeight: 600 }}>{s2.pct}%</span>
+                  </div>
+                  <div style={{ background: isDark ? "#1a1a28" : "#dde4ef", borderRadius: "2px", height: "4px" }}>
+                    <div style={{ width: `${s2.pct}%`, height: "100%", background: s2.color, borderRadius: "2px" }} />
+                  </div>
                 </div>
               ))}
             </div>
-            <div style={{ display: "flex", gap: "4px" }}>
-              {["1D", "5D", "1M", "3M", "1Y"].map((t) => (
-                <button key={t} style={styles.timeBtn(t === "1M")}>{t}</button>
+
+            <div style={{ margin: "14px 0 10px", borderTop: "1px solid var(--border)" }} />
+
+            <div style={s.sidebarLabel}>Model Status</div>
+            <div style={{ padding: "0 12px", display: "flex", flexDirection: "column", gap: "5px" }}>
+              {[
+                { label: "LSTM Model", status: "Active", color: "var(--green)" },
+                { label: "NLP Sentiment", status: "Active", color: "var(--green)" },
+                { label: "Feature Fusion", status: "Running", color: "var(--amber)" },
+              ].map((m) => (
+                <div key={m.label} style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ color: "var(--muted)", fontSize: "10px" }}>{m.label}</span>
+                  <span style={{ color: m.color, fontSize: "10px" }}>● {m.status}</span>
+                </div>
+              ))}
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "var(--muted)", fontSize: "10px" }}>Last Retrain</span>
+                <span style={{ color: "var(--muted2)", fontSize: "10px" }}>2h 14m ago</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "var(--muted)", fontSize: "10px" }}>Data Source</span>
+                <span style={{ color: "var(--muted2)", fontSize: "10px" }}>Kaggle + Live</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Center */}
+          <div style={s.center}>
+            <div style={s.stockHeader}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: "10px" }}>
+                <span style={{ color: "var(--text)", fontSize: "16px", fontWeight: 700 }}>AAPL</span>
+                <span style={{ color: "var(--muted)", fontSize: "12px" }}>Apple Inc. · NASDAQ</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginTop: "4px" }}>
+                <span style={{ color: "var(--text)", fontSize: "28px", fontWeight: 700 }}>$189.42</span>
+                <span style={{ color: "var(--green)", fontWeight: 600 }}>+3.42</span>
+                <span style={{ color: "var(--green)", fontWeight: 600 }}>+1.84%</span>
+                <span style={{ color: "var(--muted2)", fontSize: "10px" }}>15 Apr 2024, 16:00 EST</span>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 16px 0" }}>
+              <div style={{ display: "flex", gap: "14px", fontSize: "10px", color: "var(--muted)" }}>
+                {[
+                  { label: "Actual", color: "#8b5cf6", dashed: false },
+                  { label: "Prediction", color: "#d97706", dashed: true },
+                  { label: "Confidence band", color: "#d97706", dashed: false, opacity: 0.3 },
+                ].map((l) => (
+                  <div key={l.label} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                    <span style={{ display: "inline-block", width: "18px", height: "2px", background: l.dashed ? "transparent" : l.color, borderTop: l.dashed ? `2px dashed ${l.color}` : "none", opacity: l.opacity || 1, verticalAlign: "middle" }} />
+                    <span style={{ color: "var(--muted2)" }}>{l.label}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: "4px" }}>
+                {["1D", "5D", "1M", "3M", "1Y"].map((t) => (
+                  <button key={t} style={s.timeBtn(t === "1M")}>{t}</button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", padding: "4px 16px 0" }}>
+              <span style={{ background: isDark ? "#1a1a28" : "#e8edf7", border: "1px solid var(--border2)", borderRadius: "4px", padding: "3px 8px", fontSize: "9px", color: "var(--muted)" }}>
+                LSTM + Sentiment Forecast
+              </span>
+            </div>
+
+            <div style={s.chartArea}>
+              <SparkChart isDark={isDark} />
+              <div style={s.volumeSection}>
+                <div style={{ color: "var(--muted2)", fontSize: "9px", padding: "0 8px 2px", textTransform: "uppercase", letterSpacing: "0.07em" }}>Volume</div>
+                <VolumeChart />
+              </div>
+            </div>
+
+            <div style={s.statsRow}>
+              {[
+                { label: "OPEN", val: "$187.15", color: "var(--text)" },
+                { label: "HIGH", val: "$190.88", color: "var(--green)" },
+                { label: "LOW", val: "$186.60", color: "var(--red)" },
+                { label: "VOL (M)", val: "58.4M", color: "var(--text)" },
+                { label: "MKT CAP", val: "$2.91T", color: "var(--text)" },
+              ].map((stat, i) => (
+                <div key={stat.label} style={{ ...s.statItem, borderRight: i < 4 ? "1px solid var(--border)" : "none" }}>
+                  <div style={{ color: "var(--muted2)", fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.06em" }}>{stat.label}</div>
+                  <div style={{ color: stat.color, fontSize: "13px", fontWeight: 700, marginTop: "2px" }}>{stat.val}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={s.forecastRow}>
+              {[
+                { label: "1-DAY FORECAST", direction: "↑ BULLISH", price: "$192.10", conf: 74, color: "var(--green)", primary: false },
+                { label: "5-DAY FORECAST", direction: "↑ STRONG BUY", price: "$197.85", conf: 81, color: "var(--blue)", primary: true },
+                { label: "30-DAY FORECAST", direction: "→ NEUTRAL", price: "$194.20", conf: 58, color: "var(--amber)", primary: false },
+              ].map((fc, i) => (
+                <div key={fc.label} style={{ ...s.forecastCard(fc.color), borderRight: i < 2 ? "1px solid var(--border)" : "none" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <span style={{ color: "var(--muted2)", fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.07em" }}>{fc.label}</span>
+                    {fc.primary && <span style={{ color: "var(--blue)", fontSize: "9px", fontWeight: 700, border: "1px solid var(--blue)", borderRadius: "3px", padding: "1px 5px" }}>PRIMARY</span>}
+                  </div>
+                  <div style={{ color: fc.color, fontSize: "11px", fontWeight: 700, marginTop: "6px", display: "flex", alignItems: "center", gap: "4px" }}>{fc.direction}</div>
+                  <div style={{ color: fc.color, fontSize: "20px", fontWeight: 700, margin: "2px 0" }}>{fc.price}</div>
+                  <div style={{ color: "var(--muted2)", fontSize: "9px" }}>Confidence: {fc.conf}%</div>
+                  <div style={{ height: "2px", background: isDark ? "#1e1e2e" : "#dde4ef", borderRadius: "1px", marginTop: "4px", overflow: "hidden" }}>
+                    <div style={{ width: `${fc.conf}%`, height: "100%", background: fc.color, borderRadius: "1px" }} />
+                  </div>
+                </div>
               ))}
             </div>
           </div>
 
-          {/* LSTM + Sentiment Forecast badge */}
-          <div style={{ display: "flex", justifyContent: "flex-end", padding: "4px 16px 0" }}>
-            <span style={{
-              background: "#1a1a28", border: "1px solid #2a2a3e",
-              borderRadius: "4px", padding: "3px 8px", fontSize: "9px", color: "#888",
-            }}>
-              LSTM + Sentiment Forecast
-            </span>
-          </div>
-
-          {/* Chart */}
-          <div style={styles.chartArea}>
-            <SparkChart />
-
-          {/* Volume */}
-          <div style={styles.volumeSection}>
-            <div style={styles.volLabel}>Volume</div>
-            <VolumeChart />
-          </div>
-          </div>
-
-          {/* Stats Row */}
-          <div style={styles.statsRow}>
-            {[
-              { label: "OPEN", val: "$187.15", color: "#fff" },
-              { label: "HIGH", val: "$190.88", color: "#22c55e" },
-              { label: "LOW", val: "$186.60", color: "#ef4444" },
-              { label: "VOL (M)", val: "58.4M", color: "#fff" },
-              { label: "MKT CAP", val: "$2.91T", color: "#fff" },
-            ].map((s, i) => (
-              <div key={s.label} style={{ ...styles.statItem, borderRight: i < 4 ? "1px solid #1a1a28" : "none" }}>
-                <div style={styles.statLabel}>{s.label}</div>
-                <div style={styles.statVal(s.color)}>{s.val}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Forecast Cards */}
-          <div style={styles.forecastRow}>
-            <div style={{ ...styles.forecastCard("#22c55e"), borderRight: "1px solid #1a1a28" }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={styles.fcLabel}>1-DAY FORECAST</span>
-              </div>
-              <div style={styles.fcDirection("#22c55e")}>↑ BULLISH</div>
-              <div style={styles.fcPrice("#22c55e")}>$192.10</div>
-              <div style={styles.fcConf}>Confidence: 74%</div>
-              <div style={styles.progressBar("#22c55e", 74)}>
-                <div style={styles.progressFill("#22c55e", 74)} />
+          {/* Right Panel */}
+          <div style={s.rightPanel}>
+            <div style={s.rpSection}>
+              <div style={s.rpLabel}>AAPL Sentiment Score</div>
+              <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                <CircleScore score={75} isDark={isDark} />
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "5px" }}>
+                  {[
+                    { label: "Positive", pct: 72, color: "var(--green)" },
+                    { label: "Negative", pct: 18, color: "var(--red)" },
+                    { label: "Neutral", pct: 10, color: "var(--muted)" },
+                  ].map((s2) => (
+                    <div key={s2.label}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "2px" }}>
+                        <span style={{ color: "var(--muted)", fontSize: "10px" }}>{s2.label}</span>
+                        <span style={{ color: s2.color, fontSize: "10px" }}>{s2.pct}%</span>
+                      </div>
+                      <div style={{ background: isDark ? "#1a1a28" : "#dde4ef", borderRadius: "1px", height: "3px" }}>
+                        <div style={{ width: `${s2.pct}%`, height: "100%", background: s2.color, borderRadius: "1px" }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-            <div style={{ ...styles.forecastCard("#3b82f6"), borderRight: "1px solid #1a1a28", position: "relative" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <span style={styles.fcLabel}>5-DAY FORECAST</span>
-                <span style={{ ...styles.fcPrimary, color: "#3b82f6", fontSize: "9px", fontWeight: 700, border: "1px solid #3b82f6", borderRadius: "3px", padding: "1px 5px" }}>PRIMARY</span>
-              </div>
-              <div style={styles.fcDirection("#3b82f6")}>↑ STRONG BUY</div>
-              <div style={styles.fcPrice("#3b82f6")}>$197.85</div>
-              <div style={styles.fcConf}>Confidence: 81%</div>
-              <div style={styles.progressBar("#3b82f6", 81)}>
-                <div style={styles.progressFill("#3b82f6", 81)} />
-              </div>
-            </div>
-            <div style={{ ...styles.forecastCard("#d97706") }}>
-              <div style={styles.fcLabel}>30-DAY FORECAST</div>
-              <div style={styles.fcDirection("#d97706")}>→ NEUTRAL</div>
-              <div style={styles.fcPrice("#d97706")}>$194.20</div>
-              <div style={styles.fcConf}>Confidence: 58%</div>
-              <div style={styles.progressBar("#d97706", 58)}>
-                <div style={styles.progressFill("#d97706", 58)} />
-              </div>
-            </div>
-          </div>
-        </div>
 
-        {/* Right Panel */}
-        <div style={styles.rightPanel}>
-          {/* Sentiment Score */}
-          <div style={styles.rpSection}>
-            <div style={styles.rpLabel}>AAPL Sentiment Score</div>
-            <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-              <CircleScore score={75} />
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "5px" }}>
+            <div style={{ ...s.rpSection, flex: 1, overflowY: "auto" }}>
+              <div style={s.rpLabel}>Live News Feed · NLP Analyzed</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {newsItems.map((n, i) => (
+                  <div key={i} style={{ borderBottom: "1px solid var(--border)", paddingBottom: "8px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "3px" }}>
+                      <span style={{ color: "var(--muted2)", fontSize: "9px", fontWeight: 700 }}>{n.source}</span>
+                      <span style={{ color: "var(--muted3)", fontSize: "9px" }}>{n.time}</span>
+                    </div>
+                    <div style={{ color: "var(--text2)", fontSize: "10px", lineHeight: "1.4", marginBottom: "4px" }}>{n.headline}</div>
+                    <span style={{ display: "inline-block", fontSize: "9px", fontWeight: 600, background: n.color + "22", color: n.color, border: `1px solid ${n.color}55`, borderRadius: "3px", padding: "1px 6px" }}>
+                      ● {n.sentiment} · {n.score}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={s.rpSection}>
+              <div style={s.rpLabel}>Model Performance</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
                 {[
-                  { label: "Positive", pct: 72, color: "#22c55e" },
-                  { label: "Negative", pct: 18, color: "#ef4444" },
-                  { label: "Neutral", pct: 10, color: "#888" },
-                ].map((s) => (
-                  <div key={s.label}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "2px" }}>
-                      <span style={{ color: "#888", fontSize: "10px" }}>{s.label}</span>
-                      <span style={{ color: s.color, fontSize: "10px" }}>{s.pct}%</span>
-                    </div>
-                    <div style={{ background: "#1a1a28", borderRadius: "1px", height: "3px" }}>
-                      <div style={{ width: `${s.pct}%`, height: "100%", background: s.color, borderRadius: "1px" }} />
-                    </div>
+                  { label: "RMSE", val: "2.14" },
+                  { label: "MAE", val: "1.87" },
+                  { label: "Accuracy", val: "83.2%", highlight: true },
+                  { label: "F1 Score", val: "0.814", highlight: true },
+                ].map((m) => (
+                  <div key={m.label} style={{ background: isDark ? "#111120" : "#f0f5fb", border: "1px solid var(--border2)", borderRadius: "5px", padding: "7px 10px" }}>
+                    <div style={{ color: "var(--muted2)", fontSize: "9px" }}>{m.label}</div>
+                    <div style={{ color: m.highlight ? "var(--accent)" : "var(--text)", fontWeight: 700, fontSize: "13px", marginTop: "2px" }}>{m.val}</div>
                   </div>
                 ))}
               </div>
             </div>
           </div>
-
-          {/* Live News Feed */}
-          <div style={{ ...styles.rpSection, flex: 1, overflowY: "auto" }}>
-            <div style={styles.rpLabel}>Live News Feed · NLP Analyzed</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              {newsItems.map((n, i) => (
-                <div key={i} style={{ borderBottom: "1px solid #1a1a2a", paddingBottom: "8px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "3px" }}>
-                    <span style={{ color: "#555", fontSize: "9px", fontWeight: 700 }}>{n.source}</span>
-                    <span style={{ color: "#444", fontSize: "9px" }}>{n.time}</span>
-                  </div>
-                  <div style={{ color: "#ccc", fontSize: "10px", lineHeight: "1.4", marginBottom: "4px" }}>{n.headline}</div>
-                  <span style={{
-                    display: "inline-block", fontSize: "9px", fontWeight: 600,
-                    background: n.color + "22",
-                    color: n.color,
-                    border: `1px solid ${n.color}55`,
-                    borderRadius: "3px",
-                    padding: "1px 6px",
-                  }}>
-                    ● {n.sentiment} · {n.score}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Model Performance */}
-          <div style={styles.rpSection}>
-            <div style={styles.rpLabel}>Model Performance</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
-              {[
-                { label: "RMSE", val: "2.14" },
-                { label: "MAE", val: "1.87" },
-                { label: "Accuracy", val: "83.2%", highlight: true },
-                { label: "F1 Score", val: "0.814", highlight: true },
-              ].map((m) => (
-                <div key={m.label} style={{
-                  background: "#111120", border: "1px solid #1e1e30",
-                  borderRadius: "5px", padding: "7px 10px",
-                }}>
-                  <div style={{ color: "#555", fontSize: "9px" }}>{m.label}</div>
-                  <div style={{ color: m.highlight ? "#6d28d9" : "#fff", fontWeight: 700, fontSize: "13px", marginTop: "2px" }}>{m.val}</div>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
