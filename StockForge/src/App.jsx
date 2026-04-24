@@ -1,7 +1,8 @@
 import SentimentDashboard from './Components/SentimentAnalysisEngineScreen'
+import Dashboard from './Components/Dashboard'
 
 function App() {
-  return <SentimentDashboard />
+  return <Dashboard />
 }
 
 export default App
