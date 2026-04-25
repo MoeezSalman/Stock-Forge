@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import ModelTrainingAndAnalytics from "./ModelTrainingAndAnalytics";
 
 const darkTheme = {
   "--bg": "#0a0a0f",
@@ -208,6 +209,13 @@ export default function Dashboard() {
   const theme = isDark ? darkTheme : lightTheme;
   const navTabs = ["Dashboard", "Predictions", "Sentiment", "Model", "Portfolio"];
 
+  // Keep data-theme in sync for the ModelTrainingAndAnalytics page
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
+  }, [isDark]);
+
+  const toggleTheme = () => setIsDark((d) => !d);
+
   const rootStyle = Object.fromEntries(Object.entries(theme));
 
   const s = {
@@ -338,7 +346,8 @@ export default function Dashboard() {
             ))}
           </div>
           <button style={s.btnMarket}>▶ MARKET OPEN</button>
-          <button style={s.toggleBtn} onClick={() => setIsDark(!isDark)}>
+          {/* Single toggle button — shows what you'll switch TO */}
+          <button style={s.toggleBtn} onClick={toggleTheme}>
             {isDark ? "☀ Light" : "☽ Dark"}
           </button>
           <button style={s.btnRun}>Run Analysis</button>
@@ -359,7 +368,11 @@ export default function Dashboard() {
 
         {/* Main */}
         <div style={s.main}>
-
+          {activeTab === "Model" ? (
+            // ── Pass isDark + toggleTheme so the Model page shares the same toggle ──
+            <ModelTrainingAndAnalytics isDark={isDark} toggleTheme={toggleTheme} />
+          ) : (
+            <>
           {/* Sidebar */}
           <div style={s.sidebar}>
             <div style={s.sidebarLabel}>Watchlist</div>
@@ -569,6 +582,8 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+        </>
+            )}
         </div>
       </div>
     </>
