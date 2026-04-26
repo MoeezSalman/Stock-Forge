@@ -1,5 +1,5 @@
 import { useState } from "react";
-
+import Navbar from "./Navbar";
 // ── Theme tokens — mirrors StockForge dashboard exactly ───────────────────────
 const darkTheme = {
   "--bg":           "#0a0a0f",
@@ -254,34 +254,11 @@ export default function SentimentAnalysisEngine() {
       <div className="sent-root" style={rootVars}>
 
         {/* ── NAV ─────────────────────────────────────────────────────────── */}
-        <nav className="sent-nav">
-          <div className="sent-logo">
-            <div className="sent-logo-icon" style={{ background: t["--logoGrad"] }}>AS</div>
-            <span>Alpha<span style={{ color:"var(--accent)" }}>Signal</span></span>
-          </div>
-          <div className="sent-navlinks">
-            {navItems.map(n => (
-              <button
-                key={n}
-                className={n === activeNav ? "active" : ""}
-                style={navActive(n)}
-                onClick={() => setActiveNav(n)}
-              >{n}</button>
-            ))}
-          </div>
-          <div className="sent-nav-right">
-            <span className="sent-nav-info">
-              Analyzed today: <span>1,284 articles</span>
-            </span>
-            <button
-              className="sent-toggle"
-              style={{ background: isDark ? "#1e1e30" : "#e8edf7", color:"var(--text)" }}
-              onClick={() => setIsDark(v => !v)}
-            >
-              {isDark ? "☀ Light" : "☽ Dark"}
-            </button>
-          </div>
-        </nav>
+<Navbar
+  isDark={isDark}
+  onToggle={() => setIsDark(v => !v)}
+  activeLabel="Sentiment"
+/>
 
         {/* ── PAGE HEADER ──────────────────────────────────────────────────── */}
         <div className="sent-page-header">
