@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import ModelTrainingAndAnalytics from "./ModelTrainingAndAnalytics";
+import Navbar from "./Navbar";
 
 const darkTheme = {
   "--bg": "#0a0a0f",
@@ -335,23 +336,11 @@ export default function Dashboard() {
       <div style={{ ...s.root, ...rootStyle }}>
 
         {/* Top Nav */}
-        <div style={s.topBar}>
-          <div style={s.logo}>
-            <div style={s.logoIcon}>SF</div>
-            <span>Stock <span style={{ color: "var(--accent)" }}>Forge</span></span>
-          </div>
-          <div style={s.navTabs}>
-            {navTabs.map((t) => (
-              <button key={t} style={s.navTab(t === activeTab)} onClick={() => setActiveTab(t)}>{t}</button>
-            ))}
-          </div>
-          <button style={s.btnMarket}>▶ MARKET OPEN</button>
-          {/* Single toggle button — shows what you'll switch TO */}
-          <button style={s.toggleBtn} onClick={toggleTheme}>
-            {isDark ? "☀ Light" : "☽ Dark"}
-          </button>
-          <button style={s.btnRun}>Run Analysis</button>
-        </div>
+        <Navbar
+          isDark={isDark}
+          onToggle={toggleTheme}
+          activeLabel="Dashboard"
+        />
 
         {/* Animated Ticker Strip */}
         <div style={s.tickerOuter}>
