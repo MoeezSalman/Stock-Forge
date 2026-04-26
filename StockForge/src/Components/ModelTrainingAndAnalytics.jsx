@@ -1,16 +1,16 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Area, AreaChart, CartesianGrid, ResponsiveContainer,
   Tooltip, XAxis, YAxis,
 } from 'recharts';
-
+import Navbar from "./Navbar";
 /* ══════════════════════════════════════════
    STYLES
 ══════════════════════════════════════════ */
 const STYLES = `
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
 
-/* ── Dark theme ── */
 [data-theme="dark"] {
   --bg:            #090615;
   --app-grad:      radial-gradient(90% 55% at 20% -10%, rgba(126,93,255,0.20) 0%, rgba(126,93,255,0) 55%), radial-gradient(70% 45% at 100% -10%, rgba(255,176,77,0.08) 0%, rgba(255,176,77,0) 52%), linear-gradient(180deg,#070412 0%,#090615 100%);
@@ -75,9 +75,12 @@ const STYLES = `
   --toggle-inactive:#7f769e;
   --toggle-active-bg:#7e5dff;
   --toggle-active-txt:#fff;
+  --nav-bg:        #0a0718;
+  --nav-btn-active-bg: #1e1e30;
+  --nav-btn-active-txt: #ece7ff;
+  --nav-btn-txt:   #7f769e;
 }
 
-/* ── Light theme ── */
 [data-theme="light"] {
   --bg:            #f0f5fb;
   --app-grad:      none;
@@ -142,6 +145,10 @@ const STYLES = `
   --toggle-inactive:#64748b;
   --toggle-active-bg:#0f172a;
   --toggle-active-txt:#ffffff;
+  --nav-bg:        #ffffff;
+  --nav-btn-active-bg: #e8edf7;
+  --nav-btn-active-txt: #0f172a;
+  --nav-btn-txt:   #64748b;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -154,83 +161,129 @@ body {
   transition: background 0.25s, color 0.25s;
 }
 
-.app-container {
-  min-height: 100vh; width: 100%;
+.mt-app {
+  min-height: 100vh;
+  width: 100%;
   font-family: 'Manrope', sans-serif;
   color: var(--text);
   background: var(--bg);
+  display: flex;
+  flex-direction: column;
   transition: background 0.25s;
 }
-[data-theme="dark"] .app-container { background: var(--app-grad); }
+[data-theme="dark"] .mt-app { background: var(--app-grad); }
 
-/* Header */
-.header-main {
-  width: 100%; padding: 0 24px; height: 52px;
-  display: grid; grid-template-columns: auto 1fr auto;
-  align-items: center; column-gap: 28px;
+/* ── Navbar ── */
+.mt-navbar {
+  background: var(--nav-bg);
   border-bottom: 1px solid var(--header-bdr);
-  transition: border-color 0.25s;
-}
-.header-left { display: flex; align-items: center; gap: 8px; }
-.logo-box {
-  width: 22px; height: 22px; border-radius: 6px;
-  background: var(--logo-grad);
-  display: flex; align-items: center; justify-content: center;
-}
-.logo-inner { width: 11px; height: 11px; background: #fff; border-radius: 2px; opacity: 0.85; }
-.brand { font-size: 15px; font-weight: 800; color: var(--text); letter-spacing: -0.01em; }
-.brand sup { font-size: 9px; color: #7e5dff; font-weight: 700; letter-spacing: 0.05em; vertical-align: super; }
-[data-theme="light"] .brand sup { color: #4f46e5; }
-
-.header-nav { display: flex; justify-content: center; align-items: center; gap: 4px; }
-.nav-link {
-  color: var(--text-sub); font-size: 11.5px; font-weight: 600;
-  text-decoration: none; padding: 5px 10px; border-radius: 7px;
-  transition: color 0.18s, background 0.18s; border: 1px solid transparent;
-}
-.nav-link.active { color: var(--nav-active-txt); background: var(--nav-active-bg); border-color: var(--nav-active-bdr); }
-.nav-link:hover:not(.active) { color: var(--text); }
-
-.header-right { justify-self: end; display: flex; align-items: center; gap: 10px; }
-
-.epoch-pill {
-  background: var(--epoch-bg); color: var(--epoch-txt);
-  border: 1px solid var(--epoch-bdr); border-radius: 6px;
-  padding: 5px 11px; font-size: 10.5px; font-weight: 700;
-  letter-spacing: 0.04em; white-space: nowrap;
-  transition: background 0.25s, color 0.25s, border-color 0.25s;
-}
-
-/* Theme Toggle */
-.theme-toggle {
-  display: flex; align-items: center;
-  background: var(--toggle-bg); border: 1px solid var(--toggle-bdr);
-  border-radius: 8px; overflow: hidden; padding: 2px;
-  gap: 2px;
+  display: grid;
+  grid-template-columns: 200px 1fr auto;
+  align-items: center;
+  padding: 0 16px;
+  height: 44px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
   transition: background 0.25s, border-color 0.25s;
 }
-.theme-btn {
-  background: transparent; border: none; cursor: pointer;
-  font-family: 'Manrope', sans-serif; font-size: 10.5px; font-weight: 700;
-  padding: 4px 10px; border-radius: 6px; color: var(--toggle-inactive);
-  transition: background 0.2s, color 0.2s;
-  display: flex; align-items: center; gap: 4px; white-space: nowrap;
+.mt-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
 }
-.theme-btn.active {
-  background: var(--toggle-active-bg);
-  color: var(--toggle-active-txt);
+.mt-logo-icon {
+  width: 22px; height: 22px; border-radius: 5px;
+  background: var(--logo-grad);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 900; color: #fff;
+}
+.mt-nav-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.mt-nav-btn {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--nav-btn-txt);
+  padding: 4px 14px;
+  border-radius: 5px;
+  background: transparent;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.mt-nav-btn.active {
+  font-weight: 600;
+  color: var(--nav-btn-active-txt);
+  background: var(--nav-btn-active-bg);
+}
+.mt-nav-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mt-toggle-btn {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  border: 1px solid var(--toggle-bdr);
+  background: var(--toggle-bg);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.mt-export-btn {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  border: 1px solid var(--toggle-bdr);
+  background: var(--toggle-bg);
+  color: var(--text-muted);
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.mt-run-btn {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 14px;
+  border-radius: 5px;
+  cursor: pointer;
+  border: none;
+  background: var(--logo-grad);
+  color: #fff;
+  white-space: nowrap;
 }
 
-/* Hero */
+/* ── Content ── */
+.mt-content { flex: 1; overflow-y: auto; }
+
 .hero-block {
   padding: 14px 24px 0;
   display: flex; justify-content: space-between; align-items: flex-end;
 }
-.hero-title { font-size: 30px; line-height: 1.08; letter-spacing: -0.02em; font-weight: 800; color: var(--text); }
+.hero-title { font-size: 24px; line-height: 1.08; letter-spacing: -0.02em; font-weight: 800; color: var(--text); }
 .hero-desc  { margin: 4px 0 0; font-size: 12px; color: var(--text-sub); }
 .hero-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 
-/* Tabs */
 .tabs-row { display: flex; align-items: center; gap: 6px; }
 .tab-btn {
   background: transparent; color: var(--text-sub);
@@ -241,7 +294,6 @@ body {
 .tab-btn.active { background: var(--tab-active-bg); color: var(--tab-active-txt); border-color: var(--tab-active-bdr); }
 .tab-btn:hover:not(.active) { color: var(--text); border-color: var(--text-sub); }
 
-/* Stats */
 .top-zone-row { padding: 10px 24px 0; }
 .stats-cards-row { display: flex; gap: 12px; width: 100%; margin-bottom: 12px; }
 .stats-card {
@@ -259,14 +311,12 @@ body {
 .stats-sub.green { color: var(--sub-green); }
 .stats-sub.blue  { color: var(--sub-blue);  }
 
-/* Main */
 .main-content { padding: 0 24px 24px; }
 .main-grid-top    { display: grid; grid-template-columns: 1.8fr 1fr; gap: 12px; margin-bottom: 12px; }
 .main-grid-bottom { display: grid; grid-template-columns: 1.1fr 1fr 1.05fr; gap: 12px; }
 
 .panel { background: var(--panel); border: 1px solid var(--line-panel); border-radius: 10px; padding: 14px 16px 10px; transition: background 0.25s, border-color 0.25s; }
 
-/* Chart */
 .training-loss-chart { min-height: 340px; }
 .chart-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 6px; }
 .chart-title { display: block; color: var(--text); font-size: 16px; font-weight: 700; line-height: 1.15; }
@@ -278,7 +328,6 @@ body {
 .chart-tooltip { background: var(--tooltip-bg); border: 1px solid var(--tooltip-bdr); border-radius: 7px; padding: 8px 12px; font-size: 11px; font-weight: 600; font-family: 'Manrope', sans-serif; box-shadow: 0 4px 16px rgba(0,0,0,0.10); }
 .tt-epoch { color: var(--text); margin-bottom: 4px; font-weight: 700; }
 
-/* Arch */
 .model-arch-card { padding: 10px 12px; }
 .arch-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
 .arch-title { display: block; color: var(--text); font-size: 16px; font-weight: 700; line-height: 1.15; }
@@ -296,7 +345,6 @@ body {
 .arch-note  { color: var(--text-dim); font-size: 9px; font-weight: 700; margin-left: auto; }
 .arch-tag   { border: 1px solid var(--arch-tag-bdr); background: var(--arch-tag-bg); border-radius: 5px; padding: 2px 5px; color: var(--arch-tag-txt); font-size: 9px; font-weight: 700; }
 
-/* Feature Importance */
 .fi-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
 .fi-title  { color: var(--text); font-size: 16px; font-weight: 700; }
 .fi-sub    { color: var(--text-dim); font-size: 9.5px; font-weight: 700; }
@@ -307,7 +355,6 @@ body {
 .fi-bar    { height: 6px; border-radius: 999px; transition: width 0.4s ease; }
 .fi-value  { font-size: 9.5px; font-weight: 700; text-align: right; }
 
-/* Confusion Matrix */
 .cm-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
 .cm-title  { color: var(--text); font-size: 16px; font-weight: 700; }
 .cm-sub    { color: var(--text-dim); font-size: 9.5px; font-weight: 700; }
@@ -327,7 +374,6 @@ body {
 .cm-metric-green  { color: var(--cm-metric-green);  display: block; margin-bottom: 2px; }
 .cm-metric-purple { color: var(--cm-metric-purple); display: block; margin-bottom: 2px; }
 
-/* Epoch History */
 .eh-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
 .eh-title  { color: var(--text); font-size: 16px; font-weight: 700; }
 .eh-sub    { color: var(--text-dim); font-size: 9.5px; font-weight: 700; }
@@ -349,21 +395,21 @@ body {
 }
 `;
 
-/* DATA */
+/* ── Data ── */
 const chartData = [
-  { epoch: 0,  train: 0.62,  val: 0.71  },
-  { epoch: 10, train: 0.44,  val: 0.54  },
-  { epoch: 20, train: 0.28,  val: 0.38  },
-  { epoch: 30, train: 0.18,  val: 0.28  },
-  { epoch: 40, train: 0.0421,val: 0.0598},
-  { epoch: 41, train: 0.0404,val: 0.0572},
-  { epoch: 42, train: 0.0388,val: 0.0555},
-  { epoch: 43, train: 0.0371,val: 0.0532},
-  { epoch: 44, train: 0.0355,val: 0.0515},
-  { epoch: 45, train: 0.0339,val: 0.0501},
-  { epoch: 46, train: 0.0325,val: 0.0493},
-  { epoch: 47, train: 0.0312,val: 0.0487},
-  { epoch: 100,train: 0.018, val: 0.031 },
+  { epoch: 0,  train: 0.62,  val: 0.71   },
+  { epoch: 10, train: 0.44,  val: 0.54   },
+  { epoch: 20, train: 0.28,  val: 0.38   },
+  { epoch: 30, train: 0.18,  val: 0.28   },
+  { epoch: 40, train: 0.0421,val: 0.0598 },
+  { epoch: 41, train: 0.0404,val: 0.0572 },
+  { epoch: 42, train: 0.0388,val: 0.0555 },
+  { epoch: 43, train: 0.0371,val: 0.0532 },
+  { epoch: 44, train: 0.0355,val: 0.0515 },
+  { epoch: 45, train: 0.0339,val: 0.0501 },
+  { epoch: 46, train: 0.0325,val: 0.0493 },
+  { epoch: 47, train: 0.0312,val: 0.0487 },
+  { epoch: 100,train: 0.018, val: 0.031  },
 ];
 
 const features = [
@@ -388,17 +434,30 @@ const epochs = [
   { epoch: 47, loss: '0.0312', val_loss: '0.0487', acc: '83.2%', latest: true },
 ];
 
+const navItems = ['Dashboard', 'Predictions', 'Sentiment', 'Model', 'Portfolio'];
+
+const navRoutes = {
+  Dashboard:   '/',
+  Predictions: '/alpha',
+  Sentiment:   '/sentiment',
+  Model:       '/model',
+  Portfolio:   '/alpha',
+};
+
+/* ── Style injection ── */
 function useInjectStyles(css) {
   useEffect(() => {
-    const ID = 'dashboard-injected-styles';
+    const ID = 'mt-injected-styles';
     if (document.getElementById(ID)) return;
     const tag = document.createElement('style');
-    tag.id = ID; tag.textContent = css;
+    tag.id = ID;
+    tag.textContent = css;
     document.head.appendChild(tag);
     return () => { const el = document.getElementById(ID); if (el) el.remove(); };
   }, []);
 }
 
+/* ── Sub-components ── */
 function LossTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
@@ -410,7 +469,6 @@ function LossTooltip({ active, payload, label }) {
     </div>
   );
 }
-
 
 function StatsCards() {
   const cards = [
@@ -479,13 +537,15 @@ function TrainingLossChart({ theme }) {
 
 function ModelArchitecture() {
   const layers = [
-    { label: 'Input Layer', cls: 'input', right: (
+    {
+      label: 'Input Layer', cls: 'input',
+      right: (
         <div className="arch-right-group">
           <span className="arch-tag">OHLCV · 60 timesteps</span>
           <span className="arch-arrow">↓</span>
           <span className="arch-tag">NLP FinBERT 768-d</span>
         </div>
-      )
+      ),
     },
     { label: 'LSTM Layer 1',      cls: '',        note: '128 units · return_seq=True'  },
     { label: 'Dropout',           cls: 'dropout', note: 'p=0.3'                        },
@@ -618,45 +678,60 @@ function Tabs() {
   );
 }
 
-// ── Main export: accepts isDark + toggleTheme as props from Dashboard ──
-export default function ModelTrainingAndAnalytics({ isDark, toggleTheme }) {
+/* ══════════════════════════════════════════
+   MAIN EXPORT — fully standalone, no props
+══════════════════════════════════════════ */
+export default function ModelTrainingAndAnalytics() {
   useInjectStyles(STYLES);
 
-  // Derive theme string from the prop passed by Dashboard
+  const [isDark, setIsDark] = useState(true);
+  const navigate = useNavigate();
+
   const theme = isDark ? 'dark' : 'light';
 
-  // Keep data-theme attribute on <html> in sync with Dashboard's isDark state
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
   return (
-    <div className="app-container" style={{ flex: 1, overflowY: 'auto' }}>
-      <div className="hero-block">
-        <div>
-          <h1 className="hero-title">Model Training &amp; Analytics</h1>
-          <p className="hero-desc">LSTM + NLP Sentiment Fusion &nbsp;·&nbsp; Dataset: Kaggle Financial News + OHLCV</p>
+    <div className="mt-app">
+
+      {/* ── Navbar ── */}
+      <Navbar
+  isDark={isDark}
+  onToggle={() => setIsDark(d => !d)}
+  activeLabel="Model"
+/>
+
+      {/* ── Page content ── */}
+      <div className="mt-content">
+        <div className="hero-block">
+          <div>
+            <h1 className="hero-title">Model Training &amp; Analytics</h1>
+            <p className="hero-desc">LSTM + NLP Sentiment Fusion &nbsp;·&nbsp; Dataset: Kaggle Financial News + OHLCV</p>
+          </div>
+          <div className="hero-right">
+            <Tabs />
+          </div>
         </div>
-        <div className="hero-right">
-          <Tabs />
+
+        <div className="top-zone-row">
+          <StatsCards />
         </div>
+
+        <main className="main-content">
+          <div className="main-grid-top">
+            <TrainingLossChart theme={theme} />
+            <ModelArchitecture />
+          </div>
+          <div className="main-grid-bottom">
+            <FeatureImportance theme={theme} />
+            <ConfusionMatrix />
+            <EpochHistory />
+          </div>
+        </main>
       </div>
 
-      <div className="top-zone-row">
-        <StatsCards />
-      </div>
-
-      <main className="main-content">
-        <div className="main-grid-top">
-          <TrainingLossChart theme={theme} />
-          <ModelArchitecture />
-        </div>
-        <div className="main-grid-bottom">
-          <FeatureImportance theme={theme} />
-          <ConfusionMatrix />
-          <EpochHistory />
-        </div>
-      </main>
     </div>
   );
 }
