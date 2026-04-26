@@ -1,5 +1,5 @@
 import { useState } from "react";
-
+import Navbar from "./Navbar";
 // ── Dark theme tokens (mirrors StockForge dashboard exactly) ──────────────────
 const DARK = {
   bg:        "#0a0a0f",
@@ -173,62 +173,11 @@ export default function StockForgeDashboard() {
       <div style={{ fontFamily: t.mono, background: t.bg, minHeight:"100vh", color: t.text, transition:"background .2s, color .2s", fontSize:12 }}>
 
         {/* ── NAV ─────────────────────────────────────────────────────────── */}
-        <nav style={{
-          background: t.bg2, borderBottom:`1px solid ${t.border}`,
-          display:"grid", gridTemplateColumns:"200px 1fr auto",
-          alignItems:"center", padding:"0 16px", height:44,
-          position:"sticky", top:0, zIndex:100,
-        }}>
-          {/* Logo */}
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <div style={{
-              width:22, height:22, borderRadius:5,
-              background: t.logoGrad,
-              display:"flex", alignItems:"center", justifyContent:"center",
-              fontWeight:900, color:"#fff", fontSize:10,
-            }}>AS</div>
-            <span style={{ fontWeight:700, fontSize:13, color:t.text }}>
-              Alpha<span style={{ color:t.accent }}>Signal</span>
-            </span>
-          </div>
-
-          {/* Center nav */}
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:2 }}>
-            {navItems.map(n => (
-              <button key={n} onClick={() => setActiveNav(n)} style={{
-                fontFamily: t.mono, color: activeNav===n ? t.text : t.muted,
-                fontWeight: activeNav===n ? 600 : 400,
-                fontSize:12, cursor:"pointer", padding:"4px 14px",
-                borderRadius:5, background: activeNav===n ? (d?"#1e1e30":"#e8edf7") : "transparent",
-                border:"none", outline:"none", transition:"all .15s",
-              }}>{n}</button>
-            ))}
-          </div>
-
-          {/* Right */}
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <button onClick={() => setDarkMode(v => !v)} style={{
-              fontFamily:t.mono, background: d ? "#1e1e30" : "#e8edf7",
-              border:`1px solid ${t.border2}`, borderRadius:5,
-              padding:"4px 12px", fontSize:11, fontWeight:600,
-              color:t.text, cursor:"pointer", display:"flex", alignItems:"center", gap:5,
-            }}>
-              {d ? "☀ Light" : "☽ Dark"}
-            </button>
-            <button style={{
-              fontFamily:t.mono, background: d ? "#1a1a28" : "#e8edf7",
-              border:`1px solid ${t.border2}`, borderRadius:5,
-              padding:"4px 12px", fontSize:11, fontWeight:600,
-              color:d ? t.muted : t.text2, cursor:"pointer",
-            }}>Export CSV</button>
-            <button style={{
-              fontFamily:t.mono, background: t.logoGrad,
-              border:"none", color:"#fff", borderRadius:5,
-              padding:"5px 14px", fontSize:11, fontWeight:700,
-              cursor:"pointer",
-            }}>Generate Report</button>
-          </div>
-        </nav>
+       <Navbar
+  isDark={d}
+  onToggle={() => setDarkMode(v => !v)}
+  activeLabel="Predictions"
+/>
 
         {/* ── CONTENT ─────────────────────────────────────────────────────── */}
         <div style={{ padding:"20px 24px 48px", maxWidth:1160, margin:"0 auto" }}>
