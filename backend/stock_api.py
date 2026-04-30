@@ -17,10 +17,11 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pymongo import MongoClient, DESCENDING
 from dotenv import load_dotenv
+import certifi
 
 load_dotenv()
-MONGO_URI = os.getenv("MONGO_URI")
-DB_NAME   = "stock_prediction_db"
+MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://Priorify:1234567890@moeezdatabases.nyxyde8.mongodb.net/StockForge")
+DB_NAME   = "StockForge"
 TICKERS   = ["AAPL", "AMZN", "GOOGL", "MSFT", "NVDA"]
 
 app = FastAPI(title="Stock Prediction API", version="1.0.0")
@@ -30,7 +31,7 @@ app.add_middleware(
 )
 
 def get_db():
-    client = MongoClient(MONGO_URI)
+    client = MongoClient(MONGO_URI, tls=True, tlsCAFile=certifi.where())
     return client[DB_NAME]
 
 
@@ -184,3 +185,32 @@ def health():
         return {"status": "ok", "mongo": "connected"}
     except Exception as e:
         return {"status": "error", "detail": str(e)}
+
+# ── GET /api/model_analytics/{ticker} ────────────────────────────────────────
+@app.get("/api/model_analytics/{ticker}")
+def get_model_analytics(ticker: str):
+    """
+    Returns all data for the ModelTrainingAndAnalytics page:
+      - model_stats       (accuracy, f1, rmse, mae, precision, recall)
+      - epoch_history     (table rows)
+      - chart_curve       (full loss curve for chart)
+      - confusion_matrix  (2x2 UP vs DOWN)
+      - feature_importance (name + value%)
+    """
+    db  = get_db()
+    doc = db.model_analytics.find_one(
+        {"ticker": ticker.upper()},
+        projection={"_id": 0}
+    )
+    if not doc:
+        raise HTTPException(404, f"No model analytics for {ticker}. Run the pipeline first.")
+    return doc
+
+
+# ── GET /api/model_analytics ──────────────────────────────────────────────────
+@app.get("/api/model_analytics")
+def list_model_analytics():
+    """Return model_stats summary for all tickers (for ticker selector)."""
+    db   = get_db()
+    docs = list(db.model_analytics.find({}, {"_id": 0, "ticker": 1, "model_stats": 1, "trained_at": 1}))
+    return docs
