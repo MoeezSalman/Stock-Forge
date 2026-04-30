@@ -673,7 +673,12 @@ export default function Dashboard() {
       <div style={{ ...s.root, ...rootStyle }}>
 
         {/* Top Nav */}
-        <Navbar isDark={isDark} onToggle={() => setIsDark(d => !d)} activeLabel="Dashboard" />
+ <Navbar
+  isDark={isDark}
+  onToggle={() => setIsDark(d => !d)}
+  activeLabel="Dashboard"
+  exportData={{ ticker: activeTicker, data, history }}
+/>
 
         {/* Ticker Strip */}
         <div style={s.tickerOuter}>
