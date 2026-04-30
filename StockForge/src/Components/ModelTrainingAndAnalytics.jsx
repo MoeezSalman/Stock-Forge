@@ -1,12 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Area, AreaChart, CartesianGrid, ResponsiveContainer,
   Tooltip, XAxis, YAxis,
 } from 'recharts';
 import Navbar from "./Navbar";
+
 /* ══════════════════════════════════════════
-   STYLES
+   STYLES  (unchanged from original)
 ══════════════════════════════════════════ */
 const STYLES = `
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
@@ -79,6 +80,11 @@ const STYLES = `
   --nav-btn-active-bg: #1e1e30;
   --nav-btn-active-txt: #ece7ff;
   --nav-btn-txt:   #7f769e;
+  --ticker-btn-bg: #1a1035;
+  --ticker-btn-bdr:#3a2a67;
+  --ticker-btn-active-bg: linear-gradient(135deg,#7e5dff,#a87dff);
+  --ticker-btn-active-txt: #fff;
+  --ticker-btn-txt: #9b86ff;
 }
 
 [data-theme="light"] {
@@ -149,6 +155,11 @@ const STYLES = `
   --nav-btn-active-bg: #e8edf7;
   --nav-btn-active-txt: #0f172a;
   --nav-btn-txt:   #64748b;
+  --ticker-btn-bg: #eef2ff;
+  --ticker-btn-bdr:#c7d2fe;
+  --ticker-btn-active-bg: linear-gradient(135deg,#4f46e5,#6d28d9);
+  --ticker-btn-active-txt: #fff;
+  --ticker-btn-txt: #4f46e5;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -173,104 +184,64 @@ body {
 }
 [data-theme="dark"] .mt-app { background: var(--app-grad); }
 
-/* ── Navbar ── */
-.mt-navbar {
-  background: var(--nav-bg);
-  border-bottom: 1px solid var(--header-bdr);
-  display: grid;
-  grid-template-columns: 200px 1fr auto;
-  align-items: center;
-  padding: 0 16px;
-  height: 44px;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  transition: background 0.25s, border-color 0.25s;
-}
-.mt-logo {
+/* ── Ticker Selector ── */
+.ticker-selector {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ticker-selector-label {
+  font-size: 10px;
   font-weight: 700;
-  font-size: 13px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-right: 4px;
+  font-family: 'Manrope', sans-serif;
+}
+.ticker-btn {
+  font-family: 'Manrope', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 13px;
+  border-radius: 7px;
+  cursor: pointer;
+  border: 1px solid var(--ticker-btn-bdr);
+  background: var(--ticker-btn-bg);
+  color: var(--ticker-btn-txt);
+  transition: all 0.18s;
+  letter-spacing: 0.03em;
+}
+.ticker-btn.active {
+  background: var(--ticker-btn-active-bg);
+  color: var(--ticker-btn-active-txt);
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(126,93,255,0.3);
+}
+.ticker-btn:hover:not(.active) {
+  border-color: var(--text-sub);
   color: var(--text);
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
 }
-.mt-logo-icon {
-  width: 22px; height: 22px; border-radius: 5px;
-  background: var(--logo-grad);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 10px; font-weight: 900; color: #fff;
-}
-.mt-nav-links {
+
+/* ── Loading / Error overlay ── */
+.mt-loading {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-}
-.mt-nav-btn {
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--nav-btn-txt);
-  padding: 4px 14px;
-  border-radius: 5px;
-  background: transparent;
-  border: none;
-  outline: none;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.mt-nav-btn.active {
-  font-weight: 600;
-  color: var(--nav-btn-active-txt);
-  background: var(--nav-btn-active-bg);
-}
-.mt-nav-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.mt-toggle-btn {
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 4px 12px;
-  border-radius: 5px;
-  cursor: pointer;
-  border: 1px solid var(--toggle-bdr);
-  background: var(--toggle-bg);
-  color: var(--text);
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  transition: all 0.2s;
-  white-space: nowrap;
-}
-.mt-export-btn {
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 4px 12px;
-  border-radius: 5px;
-  cursor: pointer;
-  border: 1px solid var(--toggle-bdr);
-  background: var(--toggle-bg);
+  min-height: 320px;
+  font-size: 13px;
   color: var(--text-muted);
-  transition: all 0.2s;
-  white-space: nowrap;
+  font-family: 'Manrope', sans-serif;
 }
-.mt-run-btn {
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 5px 14px;
-  border-radius: 5px;
-  cursor: pointer;
-  border: none;
-  background: var(--logo-grad);
-  color: #fff;
-  white-space: nowrap;
+.mt-error {
+  background: rgba(239,68,68,0.1);
+  border: 1px solid rgba(239,68,68,0.4);
+  border-radius: 8px;
+  padding: 14px 18px;
+  color: #ef4444;
+  font-size: 12px;
+  margin: 16px 24px;
 }
 
 /* ── Content ── */
@@ -279,6 +250,8 @@ body {
 .hero-block {
   padding: 14px 24px 0;
   display: flex; justify-content: space-between; align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 .hero-title { font-size: 24px; line-height: 1.08; letter-spacing: -0.02em; font-weight: 800; color: var(--text); }
 .hero-desc  { margin: 4px 0 0; font-size: 12px; color: var(--text-sub); }
@@ -386,6 +359,10 @@ body {
 .eh-table tr.latest td { color: var(--eh-latest-txt); }
 .eh-latest { margin-left: 3px; color: var(--eh-latest-txt); font-size: 7.5px; letter-spacing: 0.08em; border: 1px solid var(--eh-latest-bdr); border-radius: 3px; padding: 1px 3px; vertical-align: middle; }
 
+/* Skeleton pulse */
+@keyframes skPulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+.sk-line { border-radius: 4px; animation: skPulse 1.4s ease-in-out infinite; }
+
 @media (max-width: 1200px) {
   .main-grid-top    { grid-template-columns: 1fr; }
   .main-grid-bottom { grid-template-columns: 1fr; }
@@ -395,56 +372,11 @@ body {
 }
 `;
 
-/* ── Data ── */
-const chartData = [
-  { epoch: 0,  train: 0.62,  val: 0.71   },
-  { epoch: 10, train: 0.44,  val: 0.54   },
-  { epoch: 20, train: 0.28,  val: 0.38   },
-  { epoch: 30, train: 0.18,  val: 0.28   },
-  { epoch: 40, train: 0.0421,val: 0.0598 },
-  { epoch: 41, train: 0.0404,val: 0.0572 },
-  { epoch: 42, train: 0.0388,val: 0.0555 },
-  { epoch: 43, train: 0.0371,val: 0.0532 },
-  { epoch: 44, train: 0.0355,val: 0.0515 },
-  { epoch: 45, train: 0.0339,val: 0.0501 },
-  { epoch: 46, train: 0.0325,val: 0.0493 },
-  { epoch: 47, train: 0.0312,val: 0.0487 },
-  { epoch: 100,train: 0.018, val: 0.031  },
-];
+/* ── Constants ── */
+const TICKERS        = ["AAPL", "AMZN", "GOOGL", "MSFT", "NVDA"];
+const API_BASE       = "http://localhost:5000";
 
-const features = [
-  { name: 'Close Price',  value: 88, dColor: '#a78bfa', lColor: '#4f46e5' },
-  { name: 'NLP Score',    value: 74, dColor: '#a78bfa', lColor: '#4f46e5' },
-  { name: 'Volume',       value: 62, dColor: '#a78bfa', lColor: '#0ea5e9' },
-  { name: 'RSI(14)',      value: 55, dColor: '#f9c97b', lColor: '#f59e0b' },
-  { name: 'News Count',   value: 48, dColor: '#a78bfa', lColor: '#06b6d4' },
-  { name: 'MACD',         value: 41, dColor: '#f9c97b', lColor: '#f59e0b' },
-  { name: 'Volatility',   value: 33, dColor: '#a78bfa', lColor: '#94a3b8' },
-  { name: 'Bollinger %B', value: 28, dColor: '#a78bfa', lColor: '#94a3b8' },
-];
-
-const epochs = [
-  { epoch: 40, loss: '0.0421', val_loss: '0.0598', acc: '80.1%' },
-  { epoch: 41, loss: '0.0404', val_loss: '0.0572', acc: '80.7%' },
-  { epoch: 42, loss: '0.0388', val_loss: '0.0555', acc: '81.2%' },
-  { epoch: 43, loss: '0.0371', val_loss: '0.0532', acc: '81.8%' },
-  { epoch: 44, loss: '0.0355', val_loss: '0.0515', acc: '82.1%' },
-  { epoch: 45, loss: '0.0339', val_loss: '0.0501', acc: '82.6%' },
-  { epoch: 46, loss: '0.0325', val_loss: '0.0493', acc: '82.9%' },
-  { epoch: 47, loss: '0.0312', val_loss: '0.0487', acc: '83.2%', latest: true },
-];
-
-const navItems = ['Dashboard', 'Predictions', 'Sentiment', 'Model', 'Portfolio'];
-
-const navRoutes = {
-  Dashboard:   '/',
-  Predictions: '/alpha',
-  Sentiment:   '/sentiment',
-  Model:       '/model',
-  Portfolio:   '/alpha',
-};
-
-/* ── Style injection ── */
+/* ── Style injection (same pattern as original) ── */
 function useInjectStyles(css) {
   useEffect(() => {
     const ID = 'mt-injected-styles';
@@ -457,12 +389,17 @@ function useInjectStyles(css) {
   }, []);
 }
 
+/* ── Skeleton helpers ── */
+function SkLine({ w = 80, h = 14, bg = '#2a1f46' }) {
+  return <div className="sk-line" style={{ width: w, height: h, background: bg }} />;
+}
+
 /* ── Sub-components ── */
 function LossTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
     <div className="chart-tooltip">
-      <p className="tt-epoch">Epoch {label}</p>
+      <p className="tt-epoch">Estimator {label}</p>
       {payload.map((p) => (
         <p key={p.dataKey} style={{ color: p.color }}>{p.name}: {p.value.toFixed(4)}</p>
       ))}
@@ -470,98 +407,170 @@ function LossTooltip({ active, payload, label }) {
   );
 }
 
-function StatsCards() {
+function StatsCards({ data, loading, isDark }) {
+  const sk   = isDark ? '#2a1f46' : '#dde4ef';
+  const stats = data?.model_stats;
+
   const cards = [
-    { label: 'VAL ACCURACY', value: '83.2%',  valueClass: 'green',  sub: '▲ +2.4% vs last', subClass: 'green', highlight: true },
-    { label: 'TRAIN LOSS',   value: '0.0312', valueClass: '',        sub: '▼ Converging',    subClass: 'green' },
-    { label: 'VAL LOSS',     value: '0.0487', valueClass: '',        sub: '▼ −0.003',         subClass: 'blue'  },
-    { label: 'RMSE',         value: '2.14',   valueClass: '',        sub: '$2.14 avg err',   subClass: ''      },
-    { label: 'F1 SCORE',     value: '0.814',  valueClass: 'yellow',  sub: '▲ +0.02',          subClass: 'green' },
-    { label: 'EPOCH',        value: '47/100', valueClass: '',        sub: 'ETA: 18 min',     subClass: ''      },
+    {
+      label: 'VAL ACCURACY',
+      value: stats ? `${(stats.accuracy * 100).toFixed(1)}%` : null,
+      valueClass: 'green',
+      sub: stats ? `F1: ${stats.f1_score.toFixed(3)}` : null,
+      subClass: 'green',
+      highlight: true,
+    },
+    {
+      label: 'TRAIN SAMPLES',
+      value: stats ? String(stats.n_train) : null,
+      valueClass: '',
+      sub: `Test: ${stats ? stats.n_test : '…'}`,
+      subClass: 'blue',
+    },
+    {
+      label: 'VAL LOSS',
+      value: data?.chart_curve?.length > 0
+        ? data.chart_curve[data.chart_curve.length - 1].val.toFixed(4)
+        : null,
+      valueClass: '',
+      sub: '▼ Final epoch',
+      subClass: '',
+    },
+    {
+      label: 'RMSE',
+      value: stats ? stats.rmse.toFixed(4) : null,
+      valueClass: '',
+      sub: `MAE: ${stats ? stats.mae.toFixed(4) : '…'}`,
+      subClass: '',
+    },
+    {
+      label: 'F1 SCORE',
+      value: stats ? stats.f1_score.toFixed(3) : null,
+      valueClass: 'yellow',
+      sub: `Precision: ${stats ? (stats.precision * 100).toFixed(1) + '%' : '…'}`,
+      subClass: 'green',
+    },
+    {
+      label: 'EPOCH',
+      value: data?.n_estimators ? `${data.n_estimators}` : null,
+      valueClass: '',
+      sub: `Depth: ${data?.max_depth ?? '…'}  LR: ${data?.learning_rate ?? '…'}`,
+      subClass: '',
+    },
   ];
+
   return (
     <div className="stats-cards-row">
       {cards.map((c) => (
         <div key={c.label} className={`stats-card${c.highlight ? ' highlight' : ''}`}>
           <div className="stats-label">{c.label}</div>
-          <div className={`stats-value${c.valueClass ? ` ${c.valueClass}` : ''}`}>{c.value}</div>
-          <div className={`stats-sub${c.subClass ? ` ${c.subClass}` : ''}`}>{c.sub}</div>
+          {loading
+            ? <SkLine w={90} h={28} bg={sk} />
+            : <div className={`stats-value${c.valueClass ? ` ${c.valueClass}` : ''}`}>{c.value ?? '—'}</div>
+          }
+          {loading
+            ? <SkLine w={60} h={11} bg={sk} />
+            : <div className={`stats-sub${c.subClass ? ` ${c.subClass}` : ''}`}>{c.sub ?? ''}</div>
+          }
         </div>
       ))}
     </div>
   );
 }
 
-function TrainingLossChart({ theme }) {
-  const tc = theme === 'dark' ? '#8b6bff' : '#4f46e5';
-  const vc = theme === 'dark' ? '#ffad49' : '#f59e0b';
+function TrainingLossChart({ data, loading, theme, isDark }) {
+  const sk  = isDark ? '#2a1f46' : '#dde4ef';
+  const tc  = theme === 'dark' ? '#8b6bff' : '#4f46e5';
+  const vc  = theme === 'dark' ? '#ffad49' : '#f59e0b';
   const gridColor = theme === 'dark' ? 'rgba(43,31,74,0.6)' : 'rgba(203,213,225,0.8)';
   const tickColor = theme === 'dark' ? '#5a5278' : '#94a3b8';
   const axisColor = theme === 'dark' ? '#2b1f4a' : '#cbd5e1';
+
+  const chartData = data?.chart_curve ?? [];
+  const lastEpoch = chartData.length > 0 ? chartData[chartData.length - 1].epoch : '—';
+
   return (
     <div className="panel training-loss-chart">
       <div className="chart-header">
         <div>
           <span className="chart-title">Training &amp; Validation Loss</span>
-          <span className="chart-sub">Cross-entropy · Adam · LR=0.001</span>
+          <span className="chart-sub">
+            Cross-entropy · XGBoost · LR={data?.learning_rate ?? '0.05'}
+          </span>
         </div>
         <div className="chart-legend-inline">
           <span className="legend-train">— Train</span>
           <span className="legend-val">— Val</span>
         </div>
       </div>
-      <ResponsiveContainer width="100%" height={265}>
-        <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -10, bottom: 0 }}>
-          <defs>
-            <linearGradient id="trainGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor={tc} stopOpacity={theme === 'dark' ? 0.25 : 0.12} />
-              <stop offset="95%" stopColor={tc} stopOpacity={0.01} />
-            </linearGradient>
-            <linearGradient id="valGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor={vc} stopOpacity={theme === 'dark' ? 0.18 : 0.10} />
-              <stop offset="95%" stopColor={vc} stopOpacity={0.01} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-          <XAxis dataKey="epoch" tick={{ fill: tickColor, fontSize: 10, fontFamily: 'Manrope' }} tickLine={false} axisLine={{ stroke: axisColor }} />
-          <YAxis tick={{ fill: tickColor, fontSize: 10, fontFamily: 'Manrope' }} tickLine={false} axisLine={false} tickFormatter={(v) => v.toFixed(2)} />
-          <Tooltip content={<LossTooltip />} />
-          <Area type="monotone" dataKey="train" name="Train" stroke={tc} strokeWidth={2} fill="url(#trainGrad)" dot={false} activeDot={{ r: 4 }} />
-          <Area type="monotone" dataKey="val"   name="Val"   stroke={vc} strokeWidth={2} strokeDasharray="5 3" fill="url(#valGrad)" dot={false} activeDot={{ r: 4 }} />
-        </AreaChart>
-      </ResponsiveContainer>
-      <p className="chart-footer-now">▲ Now — Epoch 47</p>
+
+      {loading ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '20px 0' }}>
+          {[1,2,3,4].map(i => <SkLine key={i} w="100%" h={40} bg={sk} />)}
+        </div>
+      ) : chartData.length === 0 ? (
+        <div className="mt-loading">No chart data — run the pipeline first.</div>
+      ) : (
+        <ResponsiveContainer width="100%" height={265}>
+          <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -10, bottom: 0 }}>
+            <defs>
+              <linearGradient id="trainGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor={tc} stopOpacity={theme === 'dark' ? 0.25 : 0.12} />
+                <stop offset="95%" stopColor={tc} stopOpacity={0.01} />
+              </linearGradient>
+              <linearGradient id="valGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor={vc} stopOpacity={theme === 'dark' ? 0.18 : 0.10} />
+                <stop offset="95%" stopColor={vc} stopOpacity={0.01} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
+            <XAxis dataKey="epoch" tick={{ fill: tickColor, fontSize: 10, fontFamily: 'Manrope' }} tickLine={false} axisLine={{ stroke: axisColor }} />
+            <YAxis tick={{ fill: tickColor, fontSize: 10, fontFamily: 'Manrope' }} tickLine={false} axisLine={false} tickFormatter={(v) => v.toFixed(2)} />
+            <Tooltip content={<LossTooltip />} />
+            <Area type="monotone" dataKey="train" name="Train" stroke={tc} strokeWidth={2} fill="url(#trainGrad)" dot={false} activeDot={{ r: 4 }} />
+            <Area type="monotone" dataKey="val"   name="Val"   stroke={vc} strokeWidth={2} strokeDasharray="5 3" fill="url(#valGrad)" dot={false} activeDot={{ r: 4 }} />
+          </AreaChart>
+        </ResponsiveContainer>
+      )}
+
+      <p className="chart-footer-now">▲ Now — Estimator {lastEpoch}</p>
     </div>
   );
 }
 
-function ModelArchitecture() {
+/* Model Architecture stays static (describes algo, not data) */
+function ModelArchitecture({ data }) {
+  const estimators = data?.n_estimators ?? 250;
+  const depth      = data?.max_depth    ?? 5;
+  const lr         = data?.learning_rate ?? 0.05;
+
   const layers = [
     {
       label: 'Input Layer', cls: 'input',
       right: (
         <div className="arch-right-group">
-          <span className="arch-tag">OHLCV · 60 timesteps</span>
+          <span className="arch-tag">OHLCV Features</span>
           <span className="arch-arrow">↓</span>
-          <span className="arch-tag">NLP FinBERT 768-d</span>
+          <span className="arch-tag">8 features · RSI-14</span>
         </div>
       ),
     },
-    { label: 'LSTM Layer 1',      cls: '',        note: '128 units · return_seq=True'  },
-    { label: 'Dropout',           cls: 'dropout', note: 'p=0.3'                        },
-    { label: 'LSTM Layer 2',      cls: '',        note: '64 units · return_seq=False'  },
-    { label: 'Feature Fusion',    cls: 'fusion',  note: 'Concat(LSTM, NLP) → 832-d'   },
-    { label: 'Dense + BatchNorm', cls: '',        note: '256 → 64 · ReLU'             },
-    { label: 'Output Layer',      cls: 'output',  note: '3 classes: UP / DOWN / HOLD' },
+    { label: 'XGBoost Ensemble',   cls: '',        note: `${estimators} estimators · mlogloss` },
+    { label: 'Gradient Boosting',  cls: 'dropout', note: `max_depth=${depth}` },
+    { label: 'Feature Weighting',  cls: '',        note: `LR=${lr} · gain importance` },
+    { label: 'Label Fusion',       cls: 'fusion',  note: 'UP / DOWN → signal mapping' },
+    { label: 'predict_proba()',    cls: '',        note: 'probability per class' },
+    { label: 'Output Layer',       cls: 'output',  note: '3 classes: UP / DOWN / HOLD' },
   ];
+
   return (
     <div className="panel model-arch-card">
       <div className="arch-header">
         <div>
           <span className="arch-title">Model Architecture</span>
-          <span className="arch-sub">LSTM + FinBERT Fusion Network</span>
+          <span className="arch-sub">XGBoost Gradient Boosted Trees</span>
         </div>
-        <span className="arch-meta">~4.2M params</span>
+        <span className="arch-meta">{estimators} trees</span>
       </div>
       <div className="arch-diagram">
         {layers.map((layer, i) => (
@@ -578,37 +587,65 @@ function ModelArchitecture() {
   );
 }
 
-function FeatureImportance({ theme }) {
+function FeatureImportance({ data, loading, theme, isDark }) {
+  const sk       = isDark ? '#2a1f46' : '#dde4ef';
+  const features = data?.feature_importance ?? [];
+
   return (
     <div className="panel">
       <div className="fi-header">
         <span className="fi-title">Feature Importance</span>
-        <span className="fi-sub">SHAP values · top 8</span>
+        <span className="fi-sub">XGBoost gain · top {features.length || 8}</span>
       </div>
       <div className="fi-bars">
-        {features.map((f) => {
-          const color = theme === 'dark' ? f.dColor : f.lColor;
-          return (
-            <div key={f.name} className="fi-row">
-              <span className="fi-label">{f.name}</span>
-              <div className="fi-bar-bg">
-                <div className="fi-bar" style={{ width: `${f.value}%`, background: color }} />
+        {loading
+          ? Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="fi-row">
+                <SkLine w={60} h={10} bg={sk} />
+                <SkLine w="100%" h={6} bg={sk} />
+                <SkLine w={28} h={10} bg={sk} />
               </div>
-              <span className="fi-value" style={{ color }}>{f.value}%</span>
-            </div>
-          );
-        })}
+            ))
+          : features.length === 0
+          ? <div className="mt-loading" style={{ minHeight: 80 }}>No data</div>
+          : features.map((f, idx) => {
+              const color = theme === 'dark'
+                ? (idx % 2 === 0 ? '#a78bfa' : '#f9c97b')
+                : (idx % 2 === 0 ? '#4f46e5' : '#f59e0b');
+              return (
+                <div key={f.key} className="fi-row">
+                  <span className="fi-label">{f.name}</span>
+                  <div className="fi-bar-bg">
+                    <div className="fi-bar" style={{ width: `${Math.min(100, f.value)}%`, background: color }} />
+                  </div>
+                  <span className="fi-value" style={{ color }}>{f.value}%</span>
+                </div>
+              );
+            })
+        }
       </div>
     </div>
   );
 }
 
-function ConfusionMatrix() {
+function ConfusionMatrix({ data, loading, isDark }) {
+  const sk = isDark ? '#2a1f46' : '#dde4ef';
+  const cm = data?.confusion_matrix;
+
+  // Expect 2×2: [[UP/UP, UP/DOWN],[DOWN/UP, DOWN/DOWN]]
+  const tp = cm?.matrix?.[0]?.[0] ?? 0;
+  const fp = cm?.matrix?.[0]?.[1] ?? 0;
+  const fn = cm?.matrix?.[1]?.[0] ?? 0;
+  const tn = cm?.matrix?.[1]?.[1] ?? 0;
+
+  const prec = cm?.precision != null ? `${(cm.precision * 100).toFixed(1)}%` : '—';
+  const rec  = cm?.recall    != null ? `${(cm.recall    * 100).toFixed(1)}%` : '—';
+
   return (
     <div className="panel">
       <div className="cm-header">
         <span className="cm-title">Confusion Matrix</span>
-        <span className="cm-sub">Test set · 1,200 samples</span>
+        <span className="cm-sub">Test set · UP vs DOWN</span>
       </div>
       <p className="cm-axis-label">Predicted →</p>
       <div className="cm-table">
@@ -619,73 +656,123 @@ function ConfusionMatrix() {
         </div>
         <div className="cm-row">
           <div className="cm-cell cm-side-header">UP</div>
-          <div className="cm-cell cm-green">342</div>
-          <div className="cm-cell cm-red">48</div>
+          <div className="cm-cell cm-green">
+            {loading ? <SkLine w={32} h={18} bg={sk} /> : tp}
+          </div>
+          <div className="cm-cell cm-red">
+            {loading ? <SkLine w={32} h={18} bg={sk} /> : fp}
+          </div>
         </div>
         <div className="cm-row">
           <div className="cm-cell cm-side-header">DOWN</div>
-          <div className="cm-cell cm-red">62</div>
-          <div className="cm-cell cm-green">288</div>
+          <div className="cm-cell cm-red">
+            {loading ? <SkLine w={32} h={18} bg={sk} /> : fn}
+          </div>
+          <div className="cm-cell cm-green">
+            {loading ? <SkLine w={32} h={18} bg={sk} /> : tn}
+          </div>
         </div>
       </div>
       <p className="cm-axis-label">← Actual</p>
       <div className="cm-metrics">
         <div className="cm-metric">
-          <span className="cm-metric-green" style={{ fontSize: 18 }}>84.7%</span>PRECISION
+          {loading
+            ? <SkLine w={48} h={18} bg={sk} />
+            : <span className="cm-metric-green" style={{ fontSize: 18 }}>{prec}</span>
+          }
+          PRECISION
         </div>
         <div className="cm-metric">
-          <span className="cm-metric-purple" style={{ fontSize: 18 }}>82.3%</span>RECALL
+          {loading
+            ? <SkLine w={48} h={18} bg={sk} />
+            : <span className="cm-metric-purple" style={{ fontSize: 18 }}>{rec}</span>
+          }
+          RECALL
         </div>
       </div>
     </div>
   );
 }
 
-function EpochHistory() {
+function EpochHistory({ data, loading, isDark }) {
+  const sk     = isDark ? '#2a1f46' : '#dde4ef';
+  const epochs = data?.epoch_history ?? [];
+
   return (
     <div className="panel">
       <div className="eh-header">
         <span className="eh-title">Epoch History</span>
-        <span className="eh-sub">Recent 8 epochs</span>
+        <span className="eh-sub">{epochs.length > 0 ? `${epochs.length} sampled rows` : 'Sampled checkpoints'}</span>
       </div>
       <table className="eh-table">
         <thead>
           <tr><th>EPOCH</th><th>LOSS</th><th>VAL LOSS</th><th>ACC</th></tr>
         </thead>
         <tbody>
-          {epochs.map((row) => (
-            <tr key={row.epoch} className={row.latest ? 'latest' : ''}>
-              <td>{row.epoch}{row.latest && <span className="eh-latest">LATEST</span>}</td>
-              <td>{row.loss}</td>
-              <td>{row.val_loss}</td>
-              <td>{row.acc}</td>
-            </tr>
-          ))}
+          {loading
+            ? Array.from({ length: 8 }).map((_, i) => (
+                <tr key={i}>
+                  {[50,55,60,48].map((w,j) => (
+                    <td key={j} style={{ padding: '4px' }}>
+                      <SkLine w={w} h={10} bg={sk} />
+                    </td>
+                  ))}
+                </tr>
+              ))
+            : epochs.length === 0
+            ? <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 12 }}>No epoch data</td></tr>
+            : epochs.map((row, idx) => {
+                const isLatest = idx === epochs.length - 1;
+                return (
+                  <tr key={row.epoch} className={isLatest ? 'latest' : ''}>
+                    <td>
+                      {row.epoch}
+                      {isLatest && <span className="eh-latest">LATEST</span>}
+                    </td>
+                    <td>{row.loss}</td>
+                    <td>{row.val_loss}</td>
+                    <td>{row.acc}</td>
+                  </tr>
+                );
+              })
+          }
         </tbody>
       </table>
     </div>
   );
 }
 
-function Tabs() {
-  const [active, setActive] = useState('Training');
+
+
+/* ── Ticker Selector ── */
+function TickerSelector({ active, onChange }) {
   return (
-    <div className="tabs-row">
-      {['Training', 'Evaluation', 'Architecture', 'Data Pipeline'].map((t) => (
-        <button key={t} className={`tab-btn${active === t ? ' active' : ''}`} onClick={() => setActive(t)}>{t}</button>
+    <div className="ticker-selector">
+      <span className="ticker-selector-label">Ticker</span>
+      {TICKERS.map(t => (
+        <button
+          key={t}
+          className={`ticker-btn${t === active ? ' active' : ''}`}
+          onClick={() => onChange(t)}
+        >
+          {t}
+        </button>
       ))}
     </div>
   );
 }
 
 /* ══════════════════════════════════════════
-   MAIN EXPORT — fully standalone, no props
+   MAIN EXPORT
 ══════════════════════════════════════════ */
 export default function ModelTrainingAndAnalytics() {
   useInjectStyles(STYLES);
 
-  const [isDark, setIsDark] = useState(true);
-  const navigate = useNavigate();
+  const [isDark,  setIsDark]  = useState(true);
+  const [ticker,  setTicker]  = useState('AAPL');
+  const [data,    setData]    = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState(null);
 
   const theme = isDark ? 'dark' : 'light';
 
@@ -693,41 +780,83 @@ export default function ModelTrainingAndAnalytics() {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
+  // ── Fetch model analytics from DB whenever ticker changes ──
+  const fetchAnalytics = useCallback(async (t) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/model_analytics/${t}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status} — run the pipeline for ${t} first`);
+      const json = await res.json();
+      setData(json);
+    } catch (e) {
+      setError(e.message);
+      setData(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAnalytics(ticker);
+  }, [ticker, fetchAnalytics]);
+
+  const handleTickerChange = (t) => {
+    setTicker(t);
+  };
+
   return (
     <div className="mt-app">
 
-      {/* ── Navbar ── */}
+      {/* ── Navbar (unchanged) ── */}
       <Navbar
-  isDark={isDark}
-  onToggle={() => setIsDark(d => !d)}
-  activeLabel="Model"
-/>
+        isDark={isDark}
+        onToggle={() => setIsDark(d => !d)}
+        activeLabel="Model"
+      />
 
       {/* ── Page content ── */}
       <div className="mt-content">
         <div className="hero-block">
           <div>
             <h1 className="hero-title">Model Training &amp; Analytics</h1>
-            <p className="hero-desc">LSTM + NLP Sentiment Fusion &nbsp;·&nbsp; Dataset: Kaggle Financial News + OHLCV</p>
+            <p className="hero-desc">
+              XGBoost · Dataset: Kaggle OHLCV · Ticker:&nbsp;
+              <strong style={{ color: 'var(--text)' }}>{ticker}</strong>
+              {data?.trained_at && (
+                <span style={{ marginLeft: 8, opacity: 0.6 }}>
+                  · Last trained {new Date(data.trained_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
+            </p>
           </div>
           <div className="hero-right">
-            <Tabs />
+            {/* ── TICKER SELECTOR (new) ── */}
+            <TickerSelector active={ticker} onChange={handleTickerChange} />
+           
           </div>
         </div>
 
+        {/* Error banner */}
+        {error && (
+          <div className="mt-error">
+            ⚠ {error}
+          </div>
+        )}
+
         <div className="top-zone-row">
-          <StatsCards />
+          <StatsCards data={data} loading={loading} isDark={isDark} />
         </div>
 
         <main className="main-content">
           <div className="main-grid-top">
-            <TrainingLossChart theme={theme} />
-            <ModelArchitecture />
+            <TrainingLossChart data={data} loading={loading} theme={theme} isDark={isDark} />
+            <ModelArchitecture data={data} />
           </div>
           <div className="main-grid-bottom">
-            <FeatureImportance theme={theme} />
-            <ConfusionMatrix />
-            <EpochHistory />
+            <FeatureImportance data={data} loading={loading} theme={theme} isDark={isDark} />
+            <ConfusionMatrix   data={data} loading={loading} isDark={isDark} />
+            <EpochHistory      data={data} loading={loading} isDark={isDark} />
           </div>
         </main>
       </div>
