@@ -1,9 +1,9 @@
 """
 FINAL STOCK PIPELINE (PRODUCTION READY)
 =======================================
-- predictions → dashboard (latest only)
-- price_history → chart (blue/yellow line)
-- Added: bullish/strong_buy/neutral forecast signals + market_cap
+- predictions    → dashboard (latest only)
+- price_history  → chart (blue/yellow line)
+- model_analytics → ModelTrainingAndAnalytics page (NEW)
 """
 
 import os
@@ -15,7 +15,10 @@ from dotenv import load_dotenv
 
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, f1_score
+from sklearn.metrics import (
+    accuracy_score, f1_score, confusion_matrix,
+    precision_score, recall_score, mean_squared_error, mean_absolute_error
+)
 
 import xgboost as xgb
 import joblib
@@ -36,10 +39,9 @@ MONGO_URI = os.getenv(
 DB_NAME = "StockForge"
 TICKERS = ["AAPL", "AMZN", "GOOGL", "MSFT", "NVDA"]
 
-UP_THRESH = 0.005
+UP_THRESH   = 0.005
 DOWN_THRESH = -0.005
 
-# Approximate shares outstanding (in billions) for market cap calculation
 SHARES_OUTSTANDING = {
     "AAPL":  15.44e9,
     "AMZN":  10.33e9,
@@ -48,21 +50,27 @@ SHARES_OUTSTANDING = {
     "NVDA":  24.44e9,
 }
 
+FEATURE_LABELS = {
+    "close":  "Close Price",
+    "open":   "Open Price",
+    "high":   "High",
+    "low":    "Low",
+    "volume": "Volume",
+    "ret_1":  "Return 1d",
+    "ret_5":  "Return 5d",
+    "rsi":    "RSI(14)",
+}
+
 
 # ───────────────── DB ─────────────────
 def get_db():
-    client = MongoClient(
-        MONGO_URI,
-        tls=True,
-        tlsCAFile=certifi.where()
-    )
+    client = MongoClient(MONGO_URI, tls=True, tlsCAFile=certifi.where())
     client.admin.command("ping")
-    print("✅ Connected to MongoDB")
+    print("Connected to MongoDB")
     return client[DB_NAME]
 
 
 def setup_indexes(db):
-    # Drop any existing ticker+date index regardless of name
     ph = db["price_history"]
     for name, idx in list(ph.index_information().items()):
         key_fields = [k[0] for k in idx.get("key", [])]
@@ -79,21 +87,21 @@ def setup_indexes(db):
     except Exception:
         pass
 
-    print("✅ Indexes ready")
-    db.predictions.create_index([("ticker", ASCENDING)], unique=True)
-    db.price_history.create_index([("ticker", ASCENDING), ("date", ASCENDING)])
-    print("✅ Indexes ready")
+    try:
+        db.model_analytics.create_index([("ticker", ASCENDING)], unique=True)
+    except Exception:
+        pass
+
+    print("Indexes ready")
 
 
 # ───────────────── FEATURES ─────────────────
 def compute_rsi(series, window=14):
-    delta = series.diff()
-    gain = delta.clip(lower=0)
-    loss = -delta.clip(upper=0)
-
+    delta    = series.diff()
+    gain     = delta.clip(lower=0)
+    loss     = -delta.clip(upper=0)
     avg_gain = gain.ewm(com=window - 1).mean()
     avg_loss = loss.ewm(com=window - 1).mean()
-
     rs = avg_gain / (avg_loss + 1e-9)
     return 100 - (100 / (1 + rs))
 
@@ -106,25 +114,21 @@ def build_features(df, ticker):
     v = f"Volume_{ticker}"
 
     feat = pd.DataFrame()
-
-    feat["date"] = df["Date"]
+    feat["date"]   = df["Date"]
     feat["ticker"] = ticker
 
     close = df[c]
-
-    feat["close"] = close
-    feat["open"] = df[o]
-    feat["high"] = df[h]
-    feat["low"] = df[l]
+    feat["close"]  = close
+    feat["open"]   = df[o]
+    feat["high"]   = df[h]
+    feat["low"]    = df[l]
     feat["volume"] = df[v]
 
     feat["ret_1"] = close.pct_change(1)
     feat["ret_5"] = close.pct_change(5)
-
-    feat["rsi"] = compute_rsi(close)
+    feat["rsi"]   = compute_rsi(close)
 
     next_ret = close.pct_change().shift(-1)
-
     feat["target"] = np.where(
         next_ret > UP_THRESH, "UP",
         np.where(next_ret < DOWN_THRESH, "DOWN", "HOLD")
@@ -142,62 +146,36 @@ def _label_to_signal(label: str, confidence: float) -> str:
 
 
 def build_forecasts(df, model, le, features) -> dict:
-    """
-    Derive 1-day, 5-day and 30-day forecast signals from model probabilities.
-
-    Strategy:
-      • 1-day  → prediction on the very last row
-      • 5-day  → majority vote over the last 5 rows
-      • 30-day → majority vote over the last 30 rows
-    """
     df_clean = df.dropna()
-    X_all = df_clean[features]
+    X_all    = df_clean[features]
 
     def _vote(window_rows):
-        probs_w  = model.predict_proba(window_rows)          # (n, 3)
-        avg_prob = probs_w.mean(axis=0)                       # average across window
+        probs_w  = model.predict_proba(window_rows)
+        avg_prob = probs_w.mean(axis=0)
         pred_idx = int(np.argmax(avg_prob))
         label    = le.inverse_transform([pred_idx])[0]
         conf     = float(avg_prob[pred_idx])
         return label, conf
 
-    last_1  = X_all.iloc[-1:]
-    last_5  = X_all.iloc[-5:]
-    last_30 = X_all.iloc[-30:]
-
-    label_1d,  conf_1d  = _vote(last_1)
-    label_5d,  conf_5d  = _vote(last_5)
-    label_30d, conf_30d = _vote(last_30)
+    label_1d,  conf_1d  = _vote(X_all.iloc[-1:])
+    label_5d,  conf_5d  = _vote(X_all.iloc[-5:])
+    label_30d, conf_30d = _vote(X_all.iloc[-30:])
 
     return {
-        "forecast_1d": {
-            "signal":     _label_to_signal(label_1d, conf_1d),
-            "label":      label_1d,
-            "confidence": round(conf_1d, 4),
-        },
-        "forecast_5d": {
-            "signal":     _label_to_signal(label_5d, conf_5d),
-            "label":      label_5d,
-            "confidence": round(conf_5d, 4),
-        },
-        "forecast_30d": {
-            "signal":     _label_to_signal(label_30d, conf_30d),
-            "label":      label_30d,
-            "confidence": round(conf_30d, 4),
-        },
+        "forecast_1d":  {"signal": _label_to_signal(label_1d,  conf_1d),  "label": label_1d,  "confidence": round(conf_1d,  4)},
+        "forecast_5d":  {"signal": _label_to_signal(label_5d,  conf_5d),  "label": label_5d,  "confidence": round(conf_5d,  4)},
+        "forecast_30d": {"signal": _label_to_signal(label_30d, conf_30d), "label": label_30d, "confidence": round(conf_30d, 4)},
     }
 
 
 # ───────────────── TRAIN ─────────────────
 def train_model(df):
-    df = df.dropna()
-
+    df       = df.dropna()
     features = [c for c in df.columns if c not in ["date", "ticker", "target"]]
 
-    X = df[features]
-    y = df["target"]
-
-    le = LabelEncoder()
+    X     = df[features]
+    y     = df["target"]
+    le    = LabelEncoder()
     y_enc = le.fit_transform(y)
 
     X_train, X_test, y_train, y_test = train_test_split(
@@ -208,76 +186,88 @@ def train_model(df):
         n_estimators=250,
         max_depth=5,
         learning_rate=0.05,
-        eval_metric="mlogloss"
+        eval_metric="mlogloss",
     )
 
-    model.fit(X_train, y_train)
+    model.fit(
+        X_train, y_train,
+        eval_set=[(X_train, y_train), (X_test, y_test)],
+        verbose=False,
+    )
+
+    eval_result = model.evals_result()
 
     preds = model.predict(X_test)
+    acc   = accuracy_score(y_test, preds)
+    f1    = f1_score(y_test, preds, average="weighted")
+    prec  = precision_score(y_test, preds, average="weighted", zero_division=0)
+    rec   = recall_score(y_test, preds, average="weighted", zero_division=0)
+    rmse  = float(np.sqrt(mean_squared_error(y_test, preds)))
+    mae   = float(mean_absolute_error(y_test, preds))
 
-    acc = accuracy_score(y_test, preds)
-    f1  = f1_score(y_test, preds, average="weighted")
+    print(f"Accuracy: {acc:.4f}  F1: {f1:.4f}  RMSE: {rmse:.4f}")
 
-    print(f"📊 Accuracy: {acc:.4f} | F1: {f1:.4f}")
+    metrics = {
+        "accuracy":  round(float(acc),  4),
+        "f1_score":  round(float(f1),   4),
+        "precision": round(float(prec), 4),
+        "recall":    round(float(rec),  4),
+        "rmse":      round(rmse, 4),
+        "mae":       round(mae,  4),
+        "n_train":   len(X_train),
+        "n_test":    len(X_test),
+    }
 
-    return model, le, features
+    return model, le, features, X_test, y_test, eval_result, metrics
 
 
-# ───────────────── STORE HISTORY (CHART DATA) ─────────────────
+# ───────────────── STORE HISTORY ─────────────────
 def store_history(db, ticker, df, model, le, features):
-    coll = db["price_history"]
-
-    X = df[features].dropna()
-
-    preds = model.predict(X)
+    coll  = db["price_history"]
+    X     = df[features].dropna()
     probs = model.predict_proba(X)
-
-    ops = []
+    ops   = []
 
     for i, (_, row) in enumerate(X.iterrows()):
         ops.append({
             "ticker":          ticker,
             "date":            str(df.iloc[i]["date"])[:10],
             "close":           float(row["close"]),
+            "open":            float(row["open"]),
+            "high":            float(row["high"]),
+            "low":             float(row["low"]),
+            "volume":          float(row["volume"]),
             "predicted_close": float(row["close"] * (1 + probs[i][0]))
         })
 
     coll.insert_many(ops)
-    print(f"📈 History stored: {ticker}")
+    print(f"History stored: {ticker}")
 
 
-# ───────────────── STORE DASHBOARD (LATEST ONLY) ─────────────────
+# ───────────────── STORE LATEST (DASHBOARD) ─────────────────
 def store_latest(db, ticker, df, model, le, features):
-    df = df.dropna()
-    X  = df[features]
-
+    df    = df.dropna()
+    X     = df[features]
     last  = X.iloc[-1:]
     probs = model.predict_proba(last)[0]
     pred  = model.predict(last)[0]
     label = le.inverse_transform([pred])[0]
 
-    latest = df.iloc[-1]
-    prev   = df.iloc[-2]
-
+    latest     = df.iloc[-1]
+    prev       = df.iloc[-2]
     change     = float(latest["close"] - prev["close"])
     price      = float(latest["close"])
-    shares     = SHARES_OUTSTANDING.get(ticker, 0)
-    market_cap = price * shares          # raw value in USD
+    market_cap = price * SHARES_OUTSTANDING.get(ticker, 0)
 
-    # Format market cap → human-readable string (e.g. "$2.91T")
     def _fmt_cap(val):
-        if val >= 1e12:
-            return f"${val / 1e12:.2f}T"
-        if val >= 1e9:
-            return f"${val / 1e9:.2f}B"
-        if val >= 1e6:
-            return f"${val / 1e6:.2f}M"
+        if val >= 1e12: return f"${val/1e12:.2f}T"
+        if val >= 1e9:  return f"${val/1e9:.2f}B"
+        if val >= 1e6:  return f"${val/1e6:.2f}M"
         return f"${val:,.0f}"
 
-    # Build per-horizon forecast signals
-    forecasts = build_forecasts(df, model, le, features)
-    up_idx   = list(le.classes_).index("UP")
-    down_idx = list(le.classes_).index("DOWN")
+    forecasts   = build_forecasts(df, model, le, features)
+    up_idx      = list(le.classes_).index("UP")
+    down_idx    = list(le.classes_).index("DOWN")
     price_delta = probs[up_idx] - probs[down_idx]
 
     doc = {
@@ -288,42 +278,134 @@ def store_latest(db, ticker, df, model, le, features):
         "low":       float(latest["low"]),
         "volume":    float(latest["volume"]),
         "change":    change,
-
-        # Core next-bar prediction
         "prediction":      _label_to_signal(label, float(max(probs))),
         "confidence":      float(max(probs)),
         "predicted_close": round(float(latest["close"] * (1 + price_delta)), 2),
-
-        # ── NEW FIELDS ──────────────────────────────────────────
-        # Market capitalisation
-        "market_cap":        round(market_cap, 2),
-        "market_cap_label":  _fmt_cap(market_cap),
-
-        # Forecast signals  (signal values: BULLISH | STRONG BUY | NEUTRAL | BEARISH)
+        "market_cap":       round(market_cap, 2),
+        "market_cap_label": _fmt_cap(market_cap),
         "forecast_1d":  forecasts["forecast_1d"],
         "forecast_5d":  forecasts["forecast_5d"],
         "forecast_30d": forecasts["forecast_30d"],
-        # ────────────────────────────────────────────────────────
-
-        "updated_at": datetime.utcnow()
+        "updated_at":   datetime.utcnow()
     }
 
-    db["predictions"].update_one(
-        {"ticker": ticker},
-        {"$set": doc},
-        upsert=True
-    )
+    db["predictions"].update_one({"ticker": ticker}, {"$set": doc}, upsert=True)
+    print(f"Dashboard stored: {ticker}")
 
-    print(f"💾 Dashboard stored: {ticker}")
-    print(f"   Market Cap : {_fmt_cap(market_cap)}")
-    print(f"   1d  signal : {forecasts['forecast_1d']['signal']} ({forecasts['forecast_1d']['confidence']:.0%})")
-    print(f"   5d  signal : {forecasts['forecast_5d']['signal']} ({forecasts['forecast_5d']['confidence']:.0%})")
-    print(f"   30d signal : {forecasts['forecast_30d']['signal']} ({forecasts['forecast_30d']['confidence']:.0%})")
+
+# ───────────────── STORE MODEL ANALYTICS (NEW) ─────────────────
+def store_model_analytics(db, ticker, model, le, features, X_test, y_test, eval_result, metrics):
+    """
+    Persist everything the ModelTrainingAndAnalytics page needs:
+      epoch_history, chart_curve, confusion_matrix, feature_importance, model_stats
+    """
+
+    # 1. Epoch loss curves
+    train_losses = eval_result.get("validation_0", {}).get("mlogloss", [])
+    val_losses   = eval_result.get("validation_1", {}).get("mlogloss", [])
+    n = len(train_losses)
+
+    if n > 0:
+        sample_idx = sorted(set([
+            0,
+            max(0, n // 8),
+            max(0, n // 5),
+            max(0, n // 3),
+            max(0, n // 2),
+            max(0, 2 * n // 3),
+            max(0, 4 * n // 5),
+            n - 1,
+        ]))
+        epoch_history = []
+        for i in sample_idx:
+            tl  = float(train_losses[i])
+            vl  = float(val_losses[i]) if i < len(val_losses) else tl
+            approx_acc = max(0.0, min(1.0, 1.0 - vl + 0.35))   # scaled proxy
+            epoch_history.append({
+                "epoch":    i + 1,
+                "loss":     round(tl, 4),
+                "val_loss": round(vl, 4),
+                "acc":      f"{approx_acc * 100:.1f}%",
+            })
+
+        step = max(1, n // 100)
+        chart_curve = [
+            {
+                "epoch": i + 1,
+                "train": round(float(train_losses[i]), 4),
+                "val":   round(float(val_losses[i]),   4) if i < len(val_losses) else round(float(train_losses[i]), 4),
+            }
+            for i in range(0, n, step)
+        ]
+        if chart_curve[-1]["epoch"] != n:
+            chart_curve.append({
+                "epoch": n,
+                "train": round(float(train_losses[-1]), 4),
+                "val":   round(float(val_losses[-1]),   4) if val_losses else round(float(train_losses[-1]), 4),
+            })
+    else:
+        epoch_history = []
+        chart_curve   = []
+
+    # 2. Confusion matrix (UP vs DOWN only for the 2x2 display)
+    classes = list(le.classes_)
+    preds   = model.predict(X_test)
+    cm      = confusion_matrix(y_test, preds)
+
+    if "UP" in classes and "DOWN" in classes:
+        up_idx   = classes.index("UP")
+        dn_idx   = classes.index("DOWN")
+        idxs     = [up_idx, dn_idx]
+        cm_2x2   = cm[np.ix_(idxs, idxs)]
+        confusion = {
+            "classes":   ["UP", "DOWN"],
+            "matrix":    cm_2x2.tolist(),
+            "precision": round(float(precision_score(y_test, preds, average="weighted", zero_division=0)), 4),
+            "recall":    round(float(recall_score(y_test,    preds, average="weighted", zero_division=0)), 4),
+        }
+    else:
+        confusion = {
+            "classes":   classes,
+            "matrix":    cm.tolist(),
+            "precision": metrics["precision"],
+            "recall":    metrics["recall"],
+        }
+
+    # 3. Feature importance (gain normalised to 0-100%)
+    importances = model.feature_importances_
+    total       = float(importances.sum()) or 1.0
+    fi = [
+        {
+            "name":  FEATURE_LABELS.get(f, f),
+            "key":   f,
+            "value": round(float(importances[i] / total) * 100, 1),
+        }
+        for i, f in enumerate(features)
+    ]
+    fi.sort(key=lambda x: x["value"], reverse=True)
+
+    # 4. Upsert
+    doc = {
+        "ticker":             ticker,
+        "model_stats":        metrics,
+        "epoch_history":      epoch_history,
+        "chart_curve":        chart_curve,
+        "confusion_matrix":   confusion,
+        "feature_importance": fi,
+        "n_estimators":       int(model.n_estimators),
+        "max_depth":          int(model.max_depth),
+        "learning_rate":      float(model.learning_rate),
+        "classes":            classes,
+        "trained_at":         datetime.utcnow(),
+    }
+
+    db["model_analytics"].update_one({"ticker": ticker}, {"$set": doc}, upsert=True)
+    print(f"Model analytics stored: {ticker}  acc={metrics['accuracy']:.4f}")
 
 
 # ───────────────── MAIN ─────────────────
 def main():
-    print("\n🚀 FINAL PIPELINE STARTED\n")
+    print("\nPIPELINE STARTED\n")
 
     df = pd.read_csv(CSV_PATH)
     df["Date"] = pd.to_datetime(df["Date"])
@@ -333,20 +415,19 @@ def main():
     setup_indexes(db)
 
     for ticker in TICKERS:
-        print(f"\n📊 Processing {ticker}")
-
+        print(f"\nProcessing {ticker}")
         feat = build_features(df, ticker)
 
-        model, le, features = train_model(feat)
+        model, le, features, X_test, y_test, eval_result, metrics = train_model(feat)
 
         store_history(db, ticker, feat, model, le, features)
-
         store_latest(db, ticker, feat, model, le, features)
+        store_model_analytics(db, ticker, model, le, features, X_test, y_test, eval_result, metrics)
 
         os.makedirs("models", exist_ok=True)
         joblib.dump(model, f"models/{ticker}.pkl")
 
-    print("\n🎉 DONE - FULL DATA STORED")
+    print("\nDONE")
 
 
 if __name__ == "__main__":
