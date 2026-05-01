@@ -45,19 +45,7 @@ const lightTheme = {
   "--logo-grad": "linear-gradient(135deg,#4f46e5,#6d28d9)",
 };
 
-// ─── Static ticker data ───────────────────────────────────────────────────────
-const tickerData = [
-  { symbol: "TSLA",  price: "246.71", change: "-2.14%", neg: true  },
-  { symbol: "AMZN",  price: "183.95", change: "+0.67%", neg: false },
-  { symbol: "GOOGL", price: "168.48", change: "-0.38%", neg: true  },
-  { symbol: "META",  price: "512.80", change: "+2.05%", neg: false },
-  { symbol: "MSFT",  price: "415.50", change: "+1.12%", neg: false },
-  { symbol: "SPY",   price: "528.14", change: "+0.54%", neg: false },
-  { symbol: "QQQ",   price: "445.30", change: "+0.82%", neg: false },
-  { symbol: "AMD",   price: "178.90", change: "+1.44%", neg: false },
-  { symbol: "NFLX",  price: "628.50", change: "-1.05%", neg: true  },
-  { symbol: "CRM",   price: "295.70", change: "+0.00%", neg: false },
-];
+
 
 const newsItems = [
   { source: "Bloomberg",   time: "12 min ago",  headline: "Apple reports record iPhone sales in Q2, beats analyst expectations by 8%",   sentiment: "Positive", score: "0.91",  color: "#22c55e" },
@@ -470,11 +458,14 @@ function StatsBar({ data, loading, isDark }) {
 // ─── Price header ─────────────────────────────────────────────────────────────
 function PriceHeader({ data, loading, ticker, isDark }) {
   const price  = data ? `$${Number(data.price).toFixed(2)}` : null;
-  const change = data ? Number(data.change).toFixed(2)      : null;
-  const pct    = data?.price
-    ? ((data.change / (data.price - data.change)) * 100).toFixed(2)
-    : null;
-  const isPos  = data ? data.change >= 0 : true;
+const diff   = (data?.predicted_close && data?.open)
+  ? Number(data.predicted_close) - Number(data.open)
+  : null;
+const change = diff !== null ? diff.toFixed(2) : null;
+const pct    = (diff !== null && data?.open)
+  ? ((diff / Number(data.open)) * 100).toFixed(2)
+  : null;
+const isPos  = diff !== null ? diff >= 0 : true;
 
   const getSig = () => data?.prediction ?? "NEUTRAL";
   const sigMeta = getSignalMeta(getSig());
@@ -660,7 +651,7 @@ export default function Dashboard() {
   };
 
   const tickerItems = [...tickerData, ...tickerData, ...tickerData];
-
+  
   return (
     <>
       <style>{`
@@ -683,13 +674,22 @@ export default function Dashboard() {
         {/* Ticker Strip */}
         <div style={s.tickerOuter}>
           <div className="ticker-track" style={s.tickerTrack}>
-            {tickerItems.map((t, i) => (
-              <div key={i} style={s.tickerItem}>
-                <span style={{ color: "var(--text2)", fontWeight: 600 }}>{t.symbol}</span>
-                <span style={{ color: "var(--text)" }}>${t.price}</span>
-                <span style={{ color: t.neg ? "var(--red)" : "var(--green)", fontWeight: 600 }}>{t.change}</span>
-              </div>
-            ))}
+{[...watchlist, ...watchlist, ...watchlist].map((t, i) => (
+  <div key={i} style={s.tickerItem}>
+    <span style={{ color: "var(--text2)", fontWeight: 600 }}>{t.ticker}</span>
+    <span style={{ color: "var(--text)" }}>${Number(t.price).toFixed(2)}</span>
+    {(() => {
+  const diff = (t.predicted_close && t.open)
+  ? Number(t.predicted_close) - Number(t.open)
+  : Number(t.price) - Number(t.open);
+  return (
+    <span style={{ color: diff >= 0 ? "var(--green)" : "var(--red)", fontWeight: 600 }}>
+      {diff >= 0 ? "+" : ""}{diff.toFixed(2)}
+    </span>
+  );
+})()}
+  </div>
+))}
           </div>
         </div>
 
@@ -712,9 +712,16 @@ export default function Dashboard() {
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <div style={{ color: "var(--text)", fontWeight: 600 }}>${Number(w.price).toFixed(2)}</div>
-                  <div style={{ color: w.change >= 0 ? "var(--green)" : "var(--red)", fontSize: "10px" }}>
-                    {w.change >= 0 ? "+" : ""}{Number(w.change).toFixed(2)}
-                  </div>
+{(() => {
+  const diff = (w.predicted_close && w.open)
+  ? Number(w.predicted_close) - Number(w.open)
+  : Number(w.price) - Number(w.open);
+  return (
+    <div style={{ color: diff >= 0 ? "var(--green)" : "var(--red)", fontSize: "10px" }}>
+      {diff >= 0 ? "+" : ""}{diff.toFixed(2)}
+    </div>
+  );
+})()}
                 </div>
               </div>
             ))}
