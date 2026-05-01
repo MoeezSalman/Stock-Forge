@@ -47,15 +47,7 @@ const lightTheme = {
 
 
 
-const newsItems = [
-  { source: "Bloomberg",   time: "12 min ago",  headline: "Apple reports record iPhone sales in Q2, beats analyst expectations by 8%",   sentiment: "Positive", score: "0.91",  color: "#22c55e" },
-  { source: "Reuters",     time: "38 min ago",  headline: "Fed signals potential rate cuts could boost tech sector valuations",            sentiment: "Positive", score: "0.76",  color: "#22c55e" },
-  { source: "CNBC",        time: "1h 12m ago",  headline: "Supply chain concerns in Asia may limit Apple's production capacity",          sentiment: "Negative", score: "-0.68", color: "#ef4444" },
-  { source: "WSJ",         time: "2h 05m ago",  headline: "Apple Vision Pro gaining traction in enterprise market, analysts say",         sentiment: "Positive", score: "0.83",  color: "#22c55e" },
-  { source: "FT",          time: "3h 41m ago",  headline: "Regulatory scrutiny on Apple's App Store continues in EU markets",            sentiment: "Negative", score: "-0.22", color: "#ef4444" },
-  { source: "MarketWatch", time: "4h 20m ago",  headline: "Analyst upgrades AAPL to Strong Buy citing AI integration roadmap",           sentiment: "Positive", score: "0.88",  color: "#22c55e" },
-  { source: "TechCrunch",  time: "5h 33m ago",  headline: "Apple unveils new M4 chip architecture improvements for next-gen Mac lineup", sentiment: "Neutral",  score: "-0.15", color: "#a3a3a3" },
-];
+
 
 // ─── Signal metadata ──────────────────────────────────────────────────────────
 const SIGNAL_META = {
@@ -116,7 +108,31 @@ function usePriceHistory(ticker) {
 
   return { history, loading };
 }
+function useSentiment(ticker) {
+  const [sentData, setSentData] = useState(null);
+  const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    setLoading(true);
+
+    fetch(`http://localhost:5001/api/sentiment/dashboard?ticker=${encodeURIComponent(ticker)}`)
+      .then(res => {
+        if (!res.ok) throw new Error("API failed");
+        return res.json();
+      })
+      .then(data => {
+        console.log("Sentiment API:", data); // DEBUG
+        setSentData(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error("Sentiment error:", err);
+        setLoading(false);
+      });
+  }, [ticker]);
+
+  return { sentData, loading };
+}
 // ─── Skeleton shimmer ─────────────────────────────────────────────────────────
 function Skeleton({ width = "80px", height = "14px", isDark }) {
   return (
@@ -530,13 +546,32 @@ export default function Dashboard() {
   const [activeTimeBtn, setActiveTimeBtn] = useState("1M");
 
   const theme = isDark ? darkTheme : lightTheme;
+  
+ const { sentData: sentimentData, loading: sentimentLoading } = useSentiment(activeTicker);
 
+const articles = sentimentData?.articles ?? [];
+
+const newsItems = articles.map((a) => {
+  return {
+    source: a.source || "Unknown",
+    time: a.published_at || "Just now",
+    headline: a.title || a.headline || "No headline",
+    sentiment: a.sentiment_label || "Neutral",
+    score: a.sentiment_score?.toFixed?.(2) || "0.00",
+    color:
+      a.sentiment_label === "Positive"
+        ? "#22c55e"
+        : a.sentiment_label === "Negative"
+        ? "#ef4444"
+        : "#a3a3a3",
+  };
+});
   // Live prediction data
   const { data, loading, error } = usePrediction(activeTicker);
 
   // ── LIVE price history for chart ──
   const { history, loading: historyLoading } = usePriceHistory(activeTicker);
-
+const sentStats = sentimentData?.stats ?? null;
   // Fetch watchlist
   useEffect(() => {
     fetch("http://localhost:5000/api/predictions")
@@ -651,7 +686,31 @@ export default function Dashboard() {
   };
 
   const tickerItems = [...tickerData, ...tickerData, ...tickerData];
-  
+  const total = sentStats
+  ? (sentStats.positive_count || 0) +
+    (sentStats.negative_count || 0) +
+    (sentStats.neutral_count || 0)
+  : 0;
+
+const sentimentRows = sentStats
+  ? [
+      {
+        label: "Bullish",
+        pct: total ? Math.round((sentStats.positive_count / total) * 100) : 0,
+        color: "var(--green)",
+      },
+      {
+        label: "Bearish",
+        pct: total ? Math.round((sentStats.negative_count / total) * 100) : 0,
+        color: "var(--red)",
+      },
+      {
+        label: "Neutral",
+        pct: total ? Math.round((sentStats.neutral_count / total) * 100) : 0,
+        color: "var(--muted)",
+      },
+    ]
+  : [];
   return (
     <>
       <style>{`
@@ -730,11 +789,7 @@ export default function Dashboard() {
 
             <div style={s.sidebarLabel}>Market Sentiment</div>
             <div style={{ padding: "0 12px", display: "flex", flexDirection: "column", gap: "6px" }}>
-              {[
-                { label: "Bullish", pct: 68, color: "var(--green)" },
-                { label: "Bearish", pct: 19, color: "var(--red)"   },
-                { label: "Neutral", pct: 21, color: "var(--muted)" },
-              ].map(s2 => (
+              {sentimentRows.map(s2 => (
                 <div key={s2.label}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "2px" }}>
                     <span style={{ color: "var(--muted)", fontSize: "10px" }}>{s2.label}</span>
@@ -854,34 +909,52 @@ export default function Dashboard() {
           {/* ── Right Panel ──────────────────────────────────────────── */}
           <div style={s.rightPanel}>
 
-            <div style={s.rpSection}>
-              <div style={s.rpLabel}>
-                {activeTicker} Sentiment Score
-                {!loading && data && (
-                  <span style={{ marginLeft: 6, color: "var(--green)", fontSize: "8px" }}>● LIVE</span>
-                )}
+  <div style={s.rpSection}>
+  <div style={s.rpLabel}>
+    {activeTicker} Sentiment Score
+    {sentStats && (
+      <span style={{ marginLeft: 6, color: "var(--green)", fontSize: "8px" }}>● LIVE · DB</span>
+    )}
+  </div>
+  {(() => {
+    const total = sentStats
+      ? (sentStats.positive_count || 0) + (sentStats.negative_count || 0) + (sentStats.neutral_count || 0)
+      : 0;
+    const posPct = total ? Math.round((sentStats.positive_count / total) * 100) : 72;
+    const negPct = total ? Math.round((sentStats.negative_count / total) * 100) : 18;
+    const neuPct = total ? Math.round((sentStats.neutral_count  / total) * 100) : 10;
+    const score  = sentStats ? Math.round(posPct) : 75;
+    const rows = [
+      { label: "Positive", pct: posPct, color: "var(--green)" },
+      { label: "Negative", pct: negPct, color: "var(--red)"   },
+      { label: "Neutral",  pct: neuPct, color: "var(--muted)" },
+    ];
+    return (
+      <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+        <CircleScore score={score} isDark={isDark} />
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "5px" }}>
+          {rows.map(s2 => (
+            <div key={s2.label}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "2px" }}>
+                <span style={{ color: "var(--muted)", fontSize: "10px" }}>{s2.label}</span>
+                <span style={{ color: s2.color, fontSize: "10px" }}>{s2.pct}%</span>
               </div>
-              <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-                <CircleScore score={75} isDark={isDark} />
-                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "5px" }}>
-                  {[
-                    { label: "Positive", pct: 72, color: "var(--green)" },
-                    { label: "Negative", pct: 18, color: "var(--red)"   },
-                    { label: "Neutral",  pct: 10, color: "var(--muted)" },
-                  ].map(s2 => (
-                    <div key={s2.label}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "2px" }}>
-                        <span style={{ color: "var(--muted)", fontSize: "10px" }}>{s2.label}</span>
-                        <span style={{ color: s2.color, fontSize: "10px" }}>{s2.pct}%</span>
-                      </div>
-                      <div style={{ background: isDark ? "#1a1a28" : "#dde4ef", borderRadius: "1px", height: "3px" }}>
-                        <div style={{ width: `${s2.pct}%`, height: "100%", background: s2.color, borderRadius: "1px" }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <div style={{ background: isDark ? "#1a1a28" : "#dde4ef", borderRadius: "1px", height: "3px" }}>
+                <div style={{ width: `${s2.pct}%`, height: "100%", background: s2.color, borderRadius: "1px",
+                  transition: "width 0.8s cubic-bezier(.4,0,.2,1)" }} />
               </div>
             </div>
+          ))}
+          {sentStats && (
+            <div style={{ fontSize: "9px", color: "var(--muted2)", marginTop: 2 }}>
+              {sentStats.articles_processed} articles · {sentStats.sentiment_bias} bias
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  })()}
+</div>
 
             {/* Live prediction summary */}
             {!loading && data && (
@@ -941,7 +1014,16 @@ export default function Dashboard() {
             <div style={{ ...s.rpSection, flex: 1, overflowY: "auto" }}>
               <div style={s.rpLabel}>Live News Feed · NLP Analyzed</div>
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                {newsItems.map((n, i) => (
+                {sentimentLoading ? (
+  <div style={{ color: "var(--muted)", fontSize: "10px" }}>
+    Loading news...
+  </div>
+) : (sentimentData?.articles?.length ?? 0) === 0 ? (
+  <div style={{ color: "var(--muted)", fontSize: "10px" }}>
+    No sentiment news available
+  </div>
+) : (
+  sentimentData.articles.map((n, i) => (
                   <div key={i} style={{ borderBottom: "1px solid var(--border)", paddingBottom: "8px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "3px" }}>
                       <span style={{ color: "var(--muted2)", fontSize: "9px", fontWeight: 700 }}>{n.source}</span>
@@ -958,34 +1040,11 @@ export default function Dashboard() {
                       ● {n.sentiment} · {n.score}
                     </span>
                   </div>
-                ))}
+                ))
+)}
               </div>
             </div>
 
-            {/* Model performance */}
-            <div style={s.rpSection}>
-              <div style={s.rpLabel}>Model Performance</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
-                {[
-                  { label: "RMSE",     val: "2.14"  },
-                  { label: "MAE",      val: "1.87"  },
-                  { label: "Accuracy", val: "83.2%", highlight: true },
-                  { label: "F1 Score", val: "0.814", highlight: true },
-                ].map(m => (
-                  <div key={m.label} style={{
-                    background:   isDark ? "#111120" : "#f0f5fb",
-                    border:       "1px solid var(--border2)",
-                    borderRadius: "5px",
-                    padding:      "7px 10px",
-                  }}>
-                    <div style={{ color: "var(--muted2)", fontSize: "9px" }}>{m.label}</div>
-                    <div style={{ color: m.highlight ? "var(--accent)" : "var(--text)", fontWeight: 700, fontSize: "13px", marginTop: "2px" }}>
-                      {m.val}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
 
           </div>
         </div>
