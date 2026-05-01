@@ -13,7 +13,8 @@ collections = [
     "training_history",
     "portfolio_signals",
     "price_history",
-    "risk_metrics"
+    "risk_metrics",
+    "model_analytics",
 ]
 
 for c in collections:

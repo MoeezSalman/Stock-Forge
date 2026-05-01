@@ -214,3 +214,5 @@ def list_model_analytics():
     db   = get_db()
     docs = list(db.model_analytics.find({}, {"_id": 0, "ticker": 1, "model_stats": 1, "trained_at": 1}))
     return docs
+
+    
