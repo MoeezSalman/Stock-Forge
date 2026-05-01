@@ -8,13 +8,6 @@ const NAV_ITEMS = [
   { label: "Model",       path: "/model" },
 ];
 
-/**
- * Props:
- *  isDark        boolean   — current theme state
- *  onToggle      fn        — called when theme button clicked
- *  activeLabel   string    — which nav item to highlight
- *  exportData    object    — { ticker, data, history } passed from Dashboard for PDF export
- */
 export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -22,19 +15,17 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
 
   const mono = "'JetBrains Mono','Fira Code','Courier New',monospace";
 
-  /* ── PDF Export ─────────────────────────────────────────────────────────── */
   const handleExportPDF = async () => {
     if (exporting) return;
     setExporting(true);
 
     try {
-      // Dynamically load jsPDF (UMD) – no npm install needed
       await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
 
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
-      const W = 210; // A4 width mm
+      const W = 210;
       const now = new Date();
       const ts  = now.toLocaleString("en-US", {
         month: "short", day: "numeric", year: "numeric",
@@ -46,10 +37,15 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
       const history = exportData?.history ?? [];
 
       const price   = d.price  ? `$${Number(d.price).toFixed(2)}`  : "—";
-      const change  = d.change ? Number(d.change).toFixed(2)        : "0.00";
-      const isPos   = Number(d.change ?? 0) >= 0;
-      const pct     = d.price && d.change
-        ? ((d.change / (d.price - d.change)) * 100).toFixed(2)
+
+      // ── use predicted_close - open for change (same as dashboard) ──
+      const rawDiff = (d.predicted_close && d.open)
+        ? Number(d.predicted_close) - Number(d.open)
+        : (d.change ? Number(d.change) : 0);
+      const isPos   = rawDiff >= 0;
+      const change  = rawDiff.toFixed(2);
+      const pct     = d.open
+        ? ((rawDiff / Number(d.open)) * 100).toFixed(2)
         : "0.00";
 
       const signal    = d.prediction ?? "NEUTRAL";
@@ -68,7 +64,6 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
       };
       const sigRgb = SIGNAL_COLOR[signal] ?? [217, 119, 6];
 
-      // ── helpers ──────────────────────────────────────────────────────────
       const rgb  = (r, g, b) => { doc.setDrawColor(r,g,b); doc.setFillColor(r,g,b); };
       const text = (str, x, y, opts = {}) => {
         doc.setFontSize(opts.size ?? 9);
@@ -77,15 +72,13 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
         else doc.setTextColor(isDark ? 220 : 30, isDark ? 220 : 30, isDark ? 230 : 40);
         doc.text(String(str), x, y, { align: opts.align ?? "left" });
       };
-      const rect = (x, y, w, h, fill = true) =>
-        fill ? doc.rect(x, y, w, h, "F") : doc.rect(x, y, w, h, "S");
-      const line = (x1, y1, x2, y2) => doc.line(x1, y1, x2, y2);
+      const rect = (x, y, w, h) => doc.rect(x, y, w, h, "F");
 
-      // ── background ───────────────────────────────────────────────────────
+      // ── background ──
       rgb(isDark ? 10 : 240, isDark ? 10 : 245, isDark ? 20 : 251);
       rect(0, 0, W, 297);
 
-      // ── header band ──────────────────────────────────────────────────────
+      // ── header band ──
       rgb(isDark ? 13 : 79, isDark ? 13 : 70, isDark ? 24 : 229);
       rect(0, 0, W, 28);
 
@@ -93,20 +86,19 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
       rgb(...sigRgb);
       rect(0, 26, W, 2);
 
-      // logo text
+      // logo
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(13);
       doc.setFont("helvetica", "bold");
       doc.text("Stock", 12, 12);
       doc.setTextColor(...sigRgb);
       doc.text("Forge", 30, 12);
-
       doc.setTextColor(180, 180, 200);
       doc.setFontSize(8);
       doc.setFont("helvetica", "normal");
       doc.text("AI-Powered Market Intelligence", 12, 18);
 
-      // report title right side
+      // report title
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(9);
       doc.setFont("helvetica", "bold");
@@ -116,10 +108,9 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
       doc.setFont("helvetica", "normal");
       doc.text(`Generated: ${ts}`, W - 12, 18, { align: "right" });
 
-      // ── ticker hero section ───────────────────────────────────────────────
+      // ── ticker hero ──
       let y = 36;
 
-      // ticker badge
       rgb(...sigRgb);
       doc.roundedRect(12, y, 28, 10, 2, 2, "F");
       doc.setTextColor(255, 255, 255);
@@ -127,7 +118,6 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
       doc.setFont("helvetica", "bold");
       doc.text(ticker, 26, y + 6.5, { align: "center" });
 
-      // company name
       const companyName = {
         AAPL: "Apple Inc.", MSFT: "Microsoft Corp.",
         AMZN: "Amazon.com Inc.", GOOGL: "Alphabet Inc.", NVDA: "NVIDIA Corp.",
@@ -138,7 +128,6 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
         size: 7.5, color: [130, 130, 160],
       });
 
-      // price block (right)
       doc.setFontSize(22);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(isDark ? 220 : 15, isDark ? 220 : 15, isDark ? 230 : 25);
@@ -152,20 +141,18 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
 
       y += 20;
 
-      // ── divider ──────────────────────────────────────────────────────────
+      // divider
       rgb(isDark ? 40 : 200, isDark ? 40 : 210, isDark ? 60 : 230);
       rect(12, y, W - 24, 0.3);
       y += 5;
 
-      // ── signal card ──────────────────────────────────────────────────────
-      rgb(...sigRgb.map(v => Math.min(255, v + (isDark ? -60 : 200))));
+      // ── signal card ──
       const sigCardAlpha = isDark ? [30, 20, 50] : [240, 242, 255];
       rgb(...sigCardAlpha);
       doc.roundedRect(12, y, W - 24, 14, 2, 2, "F");
       rgb(...sigRgb);
       doc.roundedRect(12, y, W - 24, 14, 2, 2, "S");
 
-      // signal label
       rgb(...sigRgb);
       doc.roundedRect(14, y + 2, 32, 10, 1.5, 1.5, "F");
       doc.setTextColor(255, 255, 255);
@@ -173,26 +160,23 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
       doc.setFont("helvetica", "bold");
       doc.text(signal, 30, y + 8, { align: "center" });
 
-      text("Model Signal", 50, y + 5.5, { size: 7.5, color: [130, 130, 160] });
-      text(signal, 50, y + 10.5, { size: 9, bold: true, color: sigRgb });
-
-      text("Confidence", 105, y + 5.5, { size: 7.5, color: [130, 130, 160] });
-      text(conf, 105, y + 10.5, { size: 9, bold: true });
-
-      text("Predicted Close", 145, y + 5.5, { size: 7.5, color: [130, 130, 160] });
-      text(predClose, 145, y + 10.5, { size: 9, bold: true });
-
-      text("Market Cap", 180, y + 5.5, { size: 7.5, color: [130, 130, 160] });
-      text(mktCap, 180, y + 10.5, { size: 9, bold: true });
+      text("Model Signal",    50,  y + 5.5,  { size: 7.5, color: [130, 130, 160] });
+      text(signal,            50,  y + 10.5, { size: 9,   bold: true, color: sigRgb });
+      text("Confidence",      105, y + 5.5,  { size: 7.5, color: [130, 130, 160] });
+      text(conf,              105, y + 10.5, { size: 9,   bold: true });
+      text("Predicted Close", 145, y + 5.5,  { size: 7.5, color: [130, 130, 160] });
+      text(predClose,         145, y + 10.5, { size: 9,   bold: true });
+      text("Market Cap",      180, y + 5.5,  { size: 7.5, color: [130, 130, 160] });
+      text(mktCap,            180, y + 10.5, { size: 9,   bold: true });
 
       y += 20;
 
-      // ── four stats cards ─────────────────────────────────────────────────
+      // ── four stat cards ──
       const statsCards = [
-        { label: "Open",    val: d.open   ? `$${Number(d.open).toFixed(2)}`   : "—" },
-        { label: "High",    val: d.high   ? `$${Number(d.high).toFixed(2)}`   : "—", color: [34, 197, 94]   },
-        { label: "Low",     val: d.low    ? `$${Number(d.low).toFixed(2)}`    : "—", color: [239, 68, 68]   },
-        { label: "Volume",  val: d.volume ? `${(Number(d.volume)/1e6).toFixed(1)}M` : "—" },
+        { label: "Open",   val: d.open   ? `$${Number(d.open).toFixed(2)}`          : "—" },
+        { label: "High",   val: d.high   ? `$${Number(d.high).toFixed(2)}`          : "—", color: [34, 197, 94]  },
+        { label: "Low",    val: d.low    ? `$${Number(d.low).toFixed(2)}`           : "—", color: [239, 68, 68]  },
+        { label: "Volume", val: d.volume ? `${(Number(d.volume)/1e6).toFixed(1)}M`  : "—" },
       ];
       const cardW = (W - 24 - 9) / 4;
 
@@ -203,7 +187,6 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
         doc.roundedRect(cx, y, cardW, 16, 2, 2, "F");
         rgb(isDark ? 40 : 200, isDark ? 40 : 210, isDark ? 70 : 230);
         doc.roundedRect(cx, y, cardW, 16, 2, 2, "S");
-
         text(card.label.toUpperCase(), cx + cardW / 2, y + 5.5, {
           size: 6.5, color: [130, 130, 160], align: "center",
         });
@@ -214,7 +197,7 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
 
       y += 22;
 
-      // ── price chart (drawn from history data) ────────────────────────────
+      // ── section title helper ──
       const sectionTitle = (label, yPos) => {
         rgb(...sigRgb);
         rect(12, yPos, 3, 5);
@@ -224,177 +207,90 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
 
       y = sectionTitle("Price History Chart", y);
 
-      const chartH = 42;
+      // ── chart ──
+      const chartH = 52;
       const chartX = 12, chartY = y, chartW = W - 24;
 
-      // chart bg
+      // chart background
       rgb(isDark ? 15 : 248, isDark ? 15 : 249, isDark ? 28 : 252);
       doc.roundedRect(chartX, chartY, chartW, chartH, 2, 2, "F");
       rgb(isDark ? 40 : 200, isDark ? 40 : 210, isDark ? 70 : 230);
       doc.roundedRect(chartX, chartY, chartW, chartH, 2, 2, "S");
 
       if (history.length > 1) {
-        const closes = history.map(h => Number(h.close)).filter(v => !isNaN(v) && v > 0);
+        const closes    = history.map(h => Number(h.close)).filter(v => !isNaN(v) && v > 0);
         const forecasts = history.map(h => Number(h.predicted_close)).filter(v => !isNaN(v) && v > 0);
 
-        const pad = 6;
-        const allVals = [...closes, ...forecasts];
-        const minV = Math.min(...allVals) * 0.998;
-        const maxV = Math.max(...allVals) * 1.002;
+        const pad  = 8;
+        const allV = [...closes, ...forecasts];
+        const minV = Math.min(...allV) * 0.998;
+        const maxV = Math.max(...allV) * 1.002;
 
-        const sx = (i, total) => chartX + pad + (i / Math.max(total - 1, 1)) * (chartW - pad * 2);
-        const sy = (v) => chartY + chartH - pad - ((v - minV) / (maxV - minV)) * (chartH - pad * 2);
+        const sx = (i, total) =>
+          chartX + pad + (i / Math.max(total - 1, 1)) * (chartW - pad * 2);
+        const sy = (v) =>
+          chartY + chartH - pad - ((v - minV) / (maxV - minV)) * (chartH - pad * 2);
 
-        // grid lines (3 horizontal)
-        doc.setDrawColor(isDark ? 40 : 200, isDark ? 40 : 210, isDark ? 60 : 225);
+        // grid lines
         doc.setLineWidth(0.2);
         [0, 0.5, 1].forEach(t => {
           const gv = minV + t * (maxV - minV);
           const gy = sy(gv);
+          doc.setDrawColor(isDark ? 40 : 200, isDark ? 40 : 210, isDark ? 60 : 225);
           doc.line(chartX + pad, gy, chartX + chartW - pad, gy);
           doc.setFontSize(5.5);
           doc.setTextColor(130, 130, 160);
           doc.text(`$${gv.toFixed(0)}`, chartX + pad - 1, gy + 1.5, { align: "right" });
         });
 
-        // area fill (approximate with filled polygon)
-        if (closes.length > 1) {
-          const pts = closes.map((v, i) => [sx(i, closes.length), sy(v)]);
-          const last = pts[pts.length - 1];
-          const first = pts[0];
-
-          doc.setFillColor(139, 92, 246, 0.15);
-          doc.setDrawColor(139, 92, 246);
-          doc.setLineWidth(0.8);
-
-          // draw line
-          doc.lines(
-            pts.slice(1).map(([x2, y2], i) => [x2 - pts[i][0], y2 - pts[i][1]]),
-            pts[0][0], pts[0][1]
+        // actual price line (purple)
+        doc.setDrawColor(139, 92, 246);
+        doc.setLineWidth(0.9);
+        doc.setLineDashPattern([], 0);
+        for (let i = 1; i < closes.length; i++) {
+          doc.line(
+            sx(i - 1, closes.length), sy(closes[i - 1]),
+            sx(i,     closes.length), sy(closes[i])
           );
         }
 
-        // actual line (purple)
-        if (history.length > 1) {
-  const closes = history
-    .map(h => Number(h.close))
-    .filter(v => !isNaN(v) && v > 0);
-  const forecasts = history
-    .map(h => Number(h.predicted_close))
-    .filter(v => !isNaN(v) && v > 0);
-
-  const pad  = 8;
-  const allV = [...closes, ...forecasts];
-  const minV = Math.min(...allV) * 0.998;
-  const maxV = Math.max(...allV) * 1.002;
-
-  const sx = (i, total) =>
-    chartX + pad + (i / Math.max(total - 1, 1)) * (chartW - pad * 2);
-  const sy = (v) =>
-    chartY + chartH - pad - ((v - minV) / (maxV - minV)) * (chartH - pad * 2);
-
-  // grid lines
-  doc.setLineWidth(0.2);
-  [0, 0.5, 1].forEach(t => {
-    const gv = minV + t * (maxV - minV);
-    const gy = sy(gv);
-    doc.setDrawColor(isDark ? 40 : 200, isDark ? 40 : 210, isDark ? 60 : 225);
-    doc.line(chartX + pad, gy, chartX + chartW - pad, gy);
-    doc.setFontSize(5.5);
-    doc.setTextColor(130, 130, 160);
-    doc.text(`$${gv.toFixed(0)}`, chartX + pad - 1, gy + 1.5, { align: "right" });
-  });
-
-  // actual price line — draw segment by segment
-  doc.setDrawColor(139, 92, 246);
-  doc.setLineWidth(0.9);
-  doc.setLineDashPattern([], 0);
-  for (let i = 1; i < closes.length; i++) {
-    doc.line(
-      sx(i - 1, closes.length), sy(closes[i - 1]),
-      sx(i,     closes.length), sy(closes[i])
-    );
-  }
-
-  // forecast dashed line
-  if (forecasts.length > 1) {
-    doc.setDrawColor(217, 119, 6);
-    doc.setLineWidth(0.7);
-    doc.setLineDashPattern([1, 1], 0);
-    const total = closes.length + forecasts.length - 1;
-    for (let i = 1; i < forecasts.length; i++) {
-      doc.line(
-        sx(closes.length - 1 + (i - 1), total), sy(forecasts[i - 1]),
-        sx(closes.length - 1 + i,       total), sy(forecasts[i])
-      );
-    }
-    doc.setLineDashPattern([], 0);
-  }
-
-  // live dot at last actual price
-  const dotX2 = sx(closes.length - 1, closes.length);
-  const dotY2 = sy(closes[closes.length - 1]);
-  doc.setFillColor(245, 158, 11);
-  doc.circle(dotX2, dotY2, 1.2, "F");
-
-  // legend
-  doc.setFontSize(6);
-  doc.setLineDashPattern([], 0);
-  doc.setDrawColor(139, 92, 246);
-  doc.setLineWidth(0.8);
-  doc.line(chartX + chartW - 42, chartY + 4, chartX + chartW - 36, chartY + 4);
-  doc.setTextColor(139, 92, 246);
-  doc.text("Actual", chartX + chartW - 34, chartY + 5.5);
-
-  doc.setDrawColor(217, 119, 6);
-  doc.setLineDashPattern([1, 1], 0);
-  doc.line(chartX + chartW - 42, chartY + 10, chartX + chartW - 36, chartY + 10);
-  doc.setLineDashPattern([], 0);
-  doc.setTextColor(217, 119, 6);
-  doc.text("Forecast", chartX + chartW - 34, chartY + 11.5);
-
-} else {
-  doc.setTextColor(130, 130, 160);
-  doc.setFontSize(8);
-  doc.text(
-    "No price history data available",
-    chartX + chartW / 2, chartY + chartH / 2,
-    { align: "center" }
-  );
-}
-
-        // forecast line (amber dashed)
+        // forecast dashed line (amber)
         if (forecasts.length > 1) {
           doc.setDrawColor(217, 119, 6);
           doc.setLineWidth(0.7);
           doc.setLineDashPattern([1, 1], 0);
+          const total = closes.length + forecasts.length - 1;
           for (let i = 1; i < forecasts.length; i++) {
-            const startI = closes.length - 1 + (i - 1);
-            const endI   = closes.length - 1 + i;
-            const total  = closes.length + forecasts.length - 1;
-            doc.line(sx(startI, total), sy(forecasts[i-1]), sx(endI, total), sy(forecasts[i]));
+            doc.line(
+              sx(closes.length - 1 + (i - 1), total), sy(forecasts[i - 1]),
+              sx(closes.length - 1 + i,       total), sy(forecasts[i])
+            );
           }
           doc.setLineDashPattern([], 0);
         }
 
-        // live dot
+        // live dot at last actual close
         const dotX2 = sx(closes.length - 1, closes.length);
         const dotY2 = sy(closes[closes.length - 1]);
         doc.setFillColor(245, 158, 11);
         doc.circle(dotX2, dotY2, 1.2, "F");
 
-        // legend
+        // legend (single, top-right corner of chart)
         doc.setFontSize(6);
-        doc.setDrawColor(139, 92, 246); doc.setLineWidth(0.8);
-        doc.line(chartX + chartW - 40, chartY + 4, chartX + chartW - 34, chartY + 4);
+        doc.setLineDashPattern([], 0);
+        doc.setDrawColor(139, 92, 246);
+        doc.setLineWidth(0.8);
+        doc.line(chartX + chartW - 42, chartY + 4, chartX + chartW - 36, chartY + 4);
         doc.setTextColor(139, 92, 246);
-        doc.text("Actual", chartX + chartW - 32, chartY + 5.5);
+        doc.text("Actual", chartX + chartW - 34, chartY + 5.5);
 
-        doc.setDrawColor(217, 119, 6); doc.setLineDashPattern([1,1],0);
-        doc.line(chartX + chartW - 40, chartY + 10, chartX + chartW - 34, chartY + 10);
-        doc.setLineDashPattern([],0);
+        doc.setDrawColor(217, 119, 6);
+        doc.setLineDashPattern([1, 1], 0);
+        doc.line(chartX + chartW - 42, chartY + 10, chartX + chartW - 36, chartY + 10);
+        doc.setLineDashPattern([], 0);
         doc.setTextColor(217, 119, 6);
-        doc.text("Forecast", chartX + chartW - 32, chartY + 11.5);
+        doc.text("Forecast", chartX + chartW - 34, chartY + 11.5);
+
       } else {
         doc.setTextColor(130, 130, 160);
         doc.setFontSize(8);
@@ -403,7 +299,7 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
 
       y += chartH + 6;
 
-      // ── forecast section ─────────────────────────────────────────────────
+      // ── forecast section ──
       y = sectionTitle("Forecast Summary", y);
 
       const forecasts3 = [
@@ -414,12 +310,11 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
       const fcW = (W - 24 - 6) / 3;
 
       forecasts3.forEach(({ label, fc }, i) => {
-        const fx = 12 + i * (fcW + 3);
+        const fx   = 12 + i * (fcW + 3);
         const sig2 = fc?.signal ?? "NEUTRAL";
         const col2 = SIGNAL_COLOR[sig2] ?? [217, 119, 6];
         const conf2 = fc ? `${(fc.confidence * 100).toFixed(0)}%` : "—";
 
-        // card bg
         const bg2 = isDark ? [15, 12, 30] : [255, 255, 255];
         rgb(...bg2);
         doc.roundedRect(fx, y, fcW, 22, 2, 2, "F");
@@ -427,7 +322,6 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
         doc.setLineWidth(0.4);
         doc.roundedRect(fx, y, fcW, 22, 2, 2, "S");
 
-        // top accent line
         rgb(...col2);
         rect(fx, y, fcW, 1.5);
 
@@ -435,7 +329,6 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
           size: 7.5, bold: true, color: [130, 130, 160], align: "center",
         });
 
-        // signal badge
         rgb(...col2);
         doc.roundedRect(fx + fcW/2 - 14, y + 9.5, 28, 7, 1.5, 1.5, "F");
         doc.setTextColor(255, 255, 255);
@@ -450,7 +343,7 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
 
       y += 28;
 
-      // ── news sentiment section ────────────────────────────────────────────
+      // ── sentiment section ──
       y = sectionTitle("Sentiment Analysis · Recent Headlines", y);
 
       const newsItems = [
@@ -471,20 +364,17 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
         const ny = y + i * 8;
         const sc = sentimentColors[n.sentiment] ?? [163, 163, 163];
 
-        // alternate row bg
         if (i % 2 === 0) {
           rgb(isDark ? 18 : 245, isDark ? 18 : 247, isDark ? 35 : 252);
           rect(12, ny - 1, W - 24, 8);
         }
 
-        // sentiment dot
         rgb(...sc);
         doc.circle(16, ny + 2.5, 1.5, "F");
 
-        text(n.source, 20, ny + 4, { size: 6.5, bold: true, color: [130, 130, 160] });
+        text(n.source,   20, ny + 4, { size: 6.5, bold: true, color: [130, 130, 160] });
         text(n.headline, 42, ny + 4, { size: 6.5 });
 
-        // score badge
         rgb(...sc.map(v => isDark ? Math.max(0, v - 160) : Math.min(255, v + 180)));
         doc.roundedRect(W - 28, ny, 16, 6, 1, 1, "F");
         doc.setTextColor(...sc);
@@ -495,7 +385,7 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
 
       y += newsItems.length * 8 + 6;
 
-      // ── model performance ────────────────────────────────────────────────
+      // ── model performance ──
       y = sectionTitle("Model Performance Metrics", y);
 
       const metrics = [
@@ -509,14 +399,13 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
       const mW = (W - 24 - 10) / 6;
 
       metrics.forEach((m, i) => {
-        const mx = 12 + i * (mW + 2);
+        const mx  = 12 + i * (mW + 2);
         const bg3 = isDark ? [15, 12, 30] : [255, 255, 255];
         rgb(...bg3);
         doc.roundedRect(mx, y, mW, 14, 1.5, 1.5, "F");
         rgb(isDark ? 40 : 200, isDark ? 40 : 210, isDark ? 70 : 230);
         doc.setLineWidth(0.3);
         doc.roundedRect(mx, y, mW, 14, 1.5, 1.5, "S");
-
         text(m.label, mx + mW / 2, y + 5, {
           size: 6, color: [130, 130, 160], align: "center",
         });
@@ -529,7 +418,7 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
 
       y += 20;
 
-      // ── footer ───────────────────────────────────────────────────────────
+      // ── footer ──
       rgb(isDark ? 13 : 79, isDark ? 13 : 70, isDark ? 24 : 229);
       rect(0, 285, W, 12);
       rgb(...sigRgb);
@@ -543,9 +432,8 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
         W / 2, 291.5, { align: "center" }
       );
       doc.setTextColor(255, 255, 255);
-      doc.text(`Page 1 of 1`, W - 12, 291.5, { align: "right" });
+      doc.text("Page 1 of 1", W - 12, 291.5, { align: "right" });
 
-      // ── save ──────────────────────────────────────────────────────────────
       const filename = `StockForge_${ticker}_${now.toISOString().slice(0, 10)}.pdf`;
       doc.save(filename);
 
@@ -557,21 +445,21 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
     }
   };
 
-  /* ── styles ─────────────────────────────────────────────────────────────── */
+  /* ── styles ── */
   const styles = {
     nav: {
-      background:   isDark ? "#0d0d18" : "#ffffff",
-      borderBottom: `1px solid ${isDark ? "#1a1a28" : "#dde4ef"}`,
-      display:      "grid",
+      background:          isDark ? "#0d0d18" : "#ffffff",
+      borderBottom:        `1px solid ${isDark ? "#1a1a28" : "#dde4ef"}`,
+      display:             "grid",
       gridTemplateColumns: "200px 1fr auto",
-      alignItems:   "center",
-      padding:      "0 16px",
-      height:       44,
-      position:     "sticky",
-      top:          0,
-      zIndex:       100,
-      transition:   "background 0.25s, border-color 0.25s",
-      fontFamily:   mono,
+      alignItems:          "center",
+      padding:             "0 16px",
+      height:              44,
+      position:            "sticky",
+      top:                 0,
+      zIndex:              100,
+      transition:          "background 0.25s, border-color 0.25s",
+      fontFamily:          mono,
     },
     logo: {
       display:    "flex",
@@ -612,38 +500,34 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
   };
 
   const btnStyle = (isActive) => ({
-    fontFamily:  mono,
-    fontSize:    12,
-    fontWeight:  isActive ? 600 : 400,
-    color:       isActive
-      ? (isDark ? "#e2e2e2" : "#0f172a")
-      : (isDark ? "#666"    : "#64748b"),
-    background:  isActive
-      ? (isDark ? "#1e1e30" : "#e8edf7")
-      : "transparent",
-    border:      "none",
-    outline:     "none",
+    fontFamily:   mono,
+    fontSize:     12,
+    fontWeight:   isActive ? 600 : 400,
+    color:        isActive ? (isDark ? "#e2e2e2" : "#0f172a") : (isDark ? "#666" : "#64748b"),
+    background:   isActive ? (isDark ? "#1e1e30" : "#e8edf7") : "transparent",
+    border:       "none",
+    outline:      "none",
     borderRadius: 5,
-    padding:     "4px 14px",
-    cursor:      "pointer",
-    transition:  "all 0.15s",
+    padding:      "4px 14px",
+    cursor:       "pointer",
+    transition:   "all 0.15s",
   });
 
   const toggleStyle = {
-    fontFamily:  mono,
-    fontSize:    11,
-    fontWeight:  600,
-    padding:     "4px 12px",
+    fontFamily:   mono,
+    fontSize:     11,
+    fontWeight:   600,
+    padding:      "4px 12px",
     borderRadius: 5,
-    cursor:      "pointer",
-    border:      `1px solid ${isDark ? "#1e1e2e" : "#c8d4e8"}`,
-    background:  isDark ? "#1e1e30" : "#e8edf7",
-    color:       isDark ? "#e2e2e2" : "#0f172a",
-    display:     "flex",
-    alignItems:  "center",
-    gap:         5,
-    whiteSpace:  "nowrap",
-    transition:  "all 0.2s",
+    cursor:       "pointer",
+    border:       `1px solid ${isDark ? "#1e1e2e" : "#c8d4e8"}`,
+    background:   isDark ? "#1e1e30" : "#e8edf7",
+    color:        isDark ? "#e2e2e2" : "#0f172a",
+    display:      "flex",
+    alignItems:   "center",
+    gap:          5,
+    whiteSpace:   "nowrap",
+    transition:   "all 0.2s",
   };
 
   const exportStyle = {
@@ -654,12 +538,8 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
     borderRadius: 5,
     cursor:       exporting ? "not-allowed" : "pointer",
     border:       `1px solid ${isDark ? "#3b82f688" : "#3b82f666"}`,
-    background:   exporting
-      ? (isDark ? "#1a1a28" : "#e8edf7")
-      : (isDark ? "#1a2040" : "#eff6ff"),
-    color:        exporting
-      ? (isDark ? "#555" : "#94a3b8")
-      : (isDark ? "#60a5fa" : "#2563eb"),
+    background:   exporting ? (isDark ? "#1a1a28" : "#e8edf7") : (isDark ? "#1a2040" : "#eff6ff"),
+    color:        exporting ? (isDark ? "#555" : "#94a3b8") : (isDark ? "#60a5fa" : "#2563eb"),
     whiteSpace:   "nowrap",
     display:      "flex",
     alignItems:   "center",
@@ -669,23 +549,22 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
   };
 
   const runStyle = {
-    fontFamily:  mono,
-    fontSize:    11,
-    fontWeight:  700,
-    padding:     "5px 14px",
+    fontFamily:   mono,
+    fontSize:     11,
+    fontWeight:   700,
+    padding:      "5px 14px",
     borderRadius: 5,
-    cursor:      "pointer",
-    border:      "none",
-    background:  isDark
+    cursor:       "pointer",
+    border:       "none",
+    background:   isDark
       ? "linear-gradient(135deg,#6d28d9,#4f46e5)"
       : "linear-gradient(135deg,#4f46e5,#6d28d9)",
-    color:       "#fff",
-    whiteSpace:  "nowrap",
+    color:        "#fff",
+    whiteSpace:   "nowrap",
   };
 
   return (
     <nav style={styles.nav}>
-
       {/* Logo */}
       <div style={styles.logo} onClick={() => navigate("/")}>
         <div style={styles.logoIcon}>SF</div>
@@ -712,7 +591,6 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
           {isDark ? "☀ Light" : "☽ Dark"}
         </button>
 
-        {/* Export PDF */}
         <button style={exportStyle} onClick={handleExportPDF} disabled={exporting}>
           {exporting ? (
             <>
@@ -720,9 +598,7 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
               Exporting…
             </>
           ) : (
-            <>
-              ↓ Export PDF
-            </>
+            <>↓ Export PDF</>
           )}
         </button>
 
@@ -734,7 +610,6 @@ export default function Navbar({ isDark, onToggle, activeLabel, exportData }) {
   );
 }
 
-/* ── helper: load external script once ──────────────────────────────────────── */
 function loadScript(src) {
   return new Promise((resolve, reject) => {
     if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
